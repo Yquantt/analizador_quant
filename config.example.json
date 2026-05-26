@@ -1,0 +1,64 @@
+{
+  "mt4_data_folder": "<RUTA_A_CARPETA_QUANTANALYZER>",
+  "data_folder": "<RUTA_A_CARPETA_QUANTANALYZER>",
+  "deepseek_base_url": "https://api.deepseek.com",
+  "deepseek_model": "deepseek-chat",
+  "accounts": [
+    {
+      "id": "123456789",
+      "type": "DEMO",
+      "label": "Cuenta Demo MT4",
+      "platform": "MT4",
+      "color": "#4CAF50"
+    },
+    {
+      "id": "123456789",
+      "type": "REAL",
+      "label": "Cuenta Principal",
+      "platform": "MT5",
+      "color": "#2196F3"
+    },
+    {
+      "id": "123456789",
+      "type": "REAL",
+      "label": "Cuenta Secundaria",
+      "platform": "MT4",
+      "color": "#FF9800"
+    },
+    {
+      "id": "123456789",
+      "type": "DEMO",
+      "label": "Cuenta Demo MT5",
+      "platform": "MT5",
+      "color": "#9C27B0"
+    },
+    {
+      "id": "123456789",
+      "type": "DEMO",
+      "label": "Cuenta Demo Extra",
+      "platform": "MT4",
+      "color": "#00BCD4"
+    }
+  ],
+  "risk_thresholds": {
+    "quarantine_pf_below": 1.0,
+    "quarantine_dd_above": 50.0,
+    "reduce_risk_dd_above": 35.0,
+    "increase_risk_pf_above": 3.5,
+    "increase_risk_dd_below": 25.0,
+    "min_trades": 15
+  },
+  "exclude_comment_patterns": [
+    "deposited",
+    "deposit",
+    "withdrawal",
+    "div.",
+    "dividend",
+    "balance",
+    "credit",
+    "bonus",
+    "correction"
+  ],
+  "server_port": 5000,
+  "auto_reload_seconds": 300
+}

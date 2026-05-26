@@ -1,0 +1,37 @@
+# Datos de MetaTrader — nunca al repo
+*.csv
+*.ex4
+*.ex5
+test_data/
+_archivo/
+
+# Archivos de estado generados en runtime
+commands.json
+result.json
+account_history*.json
+open_trades*.json
+running_eas*.json
+
+# Configuración con datos locales (rutas absolutas, etc.)
+# config.json se sube SOLO como plantilla sin valores sensibles
+# Ver config.example.json
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+.python_packages/
+.pip-cache/
+.tmp/
+venv/
+env/
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

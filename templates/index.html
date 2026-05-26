@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QA Portfolio Commander</title>
+<style>
+  :root {
+    --bg:        #0d0f14;
+    --bg2:       #141720;
+    --bg3:       #1c2030;
+    --border:    #252a38;
+    --text:      #e2e4ec;
+    --muted:     #6b7280;
+    --accent:    #4f8ef7;
+    --green:     #34d399;
+    --yellow:    #fbbf24;
+    --red:       #f87171;
+    --teal:      #22d3ee;
+    --purple:    #a78bfa;
+    --radius:    10px;
+    --font:      'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font);
+         font-size: 13px; line-height: 1.6; min-height: 100vh; }
+
+  /* ── Layout ── */
+  .app { display: grid; grid-template-columns: 260px 1fr 340px;
+         grid-template-rows: 56px 1fr; height: 100vh; gap: 0; }
+  .app > * { min-height: 0; }
+  .topbar { grid-column: 1/-1; background: var(--bg2); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 20px; gap: 16px; }
+  .sidebar { background: var(--bg2); border-right: 1px solid var(--border);
+             overflow-y: auto; padding: 16px; }
+  .main    { overflow-y: auto; padding: 20px; }
+  .chatpanel { background: var(--bg2); border-left: 1px solid var(--border);
+               display: flex; flex-direction: column; overflow: hidden; height: 100%; min-height: 0; }
+
+  /* ── Topbar ── */
+  .logo { font-size: 15px; font-weight: 700; color: var(--teal); letter-spacing: -0.5px; }
+  .logo span { color: var(--muted); font-weight: 400; }
+  .pill { font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+  .pill-green  { background: #0d2e20; color: var(--green); border: 1px solid #1a4a30; }
+  .pill-yellow { background: #2d2208; color: var(--yellow); border: 1px solid #4a3510; }
+  .pill-red    { background: #2d0f0f; color: var(--red); border: 1px solid #4a1a1a; }
+  .pill-muted  { background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
+  .top-stat { margin-left: auto; display: flex; gap: 20px; }
+  .top-stat-item { text-align: right; }
+  .top-stat-item .val { font-size: 15px; font-weight: 700; }
+  .top-stat-item .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+         background: var(--bg3); color: var(--text); cursor: pointer; font-size: 12px;
+         font-family: var(--font); transition: background .15s; }
+  .btn:hover { background: var(--border); }
+  .btn-green  { border-color: #1a4a30; background: #0d2e20; color: var(--green); }
+  .btn-green:hover { background: #1a4a30; }
+  .btn-red    { border-color: #4a1a1a; background: #2d0f0f; color: var(--red); }
+  .btn-red:hover { background: #4a1a1a; }
+  .btn-yellow { border-color: #4a3510; background: #2d2208; color: var(--yellow); }
+  .btn-yellow:hover { background: #4a3510; }
+
+  /* ── Sidebar nav ── */
+  .nav-section { font-size: 10px; color: var(--muted); letter-spacing: 1px;
+                 text-transform: uppercase; margin: 16px 0 8px; }
+  .nav-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 2px;
+              display: flex; align-items: center; justify-content: space-between; }
+  .nav-item:hover { background: var(--bg3); }
+  .nav-item.active { background: var(--bg3); border-left: 2px solid var(--accent); }
+  .nav-count { font-size: 11px; padding: 1px 7px; border-radius: 10px; }
+
+  /* ── Cards ── */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+          padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 11px; color: var(--muted); text-transform: uppercase;
+                letter-spacing: .5px; margin-bottom: 12px; }
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .metric { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+            padding: 12px; text-align: center; }
+  .metric .v { font-size: 22px; font-weight: 700; }
+  .metric .l { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; }
+  .account-panel-head { display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .account-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:8px; margin-top:12px; }
+  .account-card { background:var(--bg3); border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px; padding:10px; }
+  .account-card .name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .account-card .money { font-size:18px; font-weight:700; margin-top:5px; }
+  .filter-check { display:flex; align-items:center; gap:7px; padding:5px 0; color:var(--muted); font-size:11px; }
+  .swatch { width:10px; height:10px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .select { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; font-family:var(--font); font-size:12px; }
+
+  /* ── Table ── */
+  .sys-row { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+             padding: 12px 14px; margin-bottom: 6px; display: flex; align-items: center;
+             gap: 10px; transition: border-color .15s; }
+  .sys-row:hover { border-color: var(--accent); }
+  .sys-row.executed { opacity: 0.5; }
+  .sys-id { font-size: 12px; font-weight: 600; color: var(--text); min-width: 0; flex: 1;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sys-note { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .bar-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .bar-bg { flex: 1; height: 3px; background: var(--border); border-radius: 2px; }
+  .bar-fill { height: 3px; border-radius: 2px; }
+  .stat-inline { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .stat-val { font-weight: 600; }
+  .actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 12px; color: var(--muted);
+         border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+  /* ── Chat ── */
+  .chat-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 12px; flex: 0 0 auto; }
+  .chat-header strong { color: var(--teal); }
+  .chat-msgs { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+               padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg-user { background: #1a2540; border: 1px solid #2a3a60; padding: 10px 14px;
+              border-radius: 12px 12px 4px 12px; align-self: flex-end; max-width: 90%;
+              font-size: 12px; color: #93c5fd; }
+  .msg-ai   { background: var(--bg3); border: 1px solid var(--border); padding: 10px 14px;
+              border-radius: 12px 12px 12px 4px; align-self: flex-start; max-width: 95%;
+              font-size: 12px; line-height: 1.7; }
+  .msg-ai code { background: var(--border); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .msg-ai strong { color: var(--green); }
+  .msg-system { font-size: 10px; color: var(--muted); text-align: center; }
+  .msg-error { background: #2d0f0f; border-color: #4a1a1a; color: var(--red); }
+  .chat-input-row { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex: 0 0 auto; }
+  #chat-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+                color: var(--text); padding: 8px 12px; font-size: 12px; font-family: var(--font);
+                resize: none; outline: none; }
+  #chat-input:focus { border-color: var(--accent); }
+  .quick-btns { padding: 0 14px 10px; display: flex; flex-wrap: wrap; gap: 5px; flex: 0 0 auto; }
+  .quick-btn  { font-size: 10px; padding: 4px 10px; border-radius: 12px; border: 1px solid var(--border);
+                background: none; color: var(--muted); cursor: pointer; font-family: var(--font); }
+  .quick-btn:hover { background: var(--bg3); color: var(--text); }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border);
+             border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cursor-blink { animation: blink .7s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Command log ── */
+  .cmd-entry { font-size: 11px; padding: 8px 12px; background: var(--bg3); border-radius: 6px;
+               margin-bottom: 5px; border-left: 2px solid var(--green); }
+  .cmd-ts { color: var(--muted); font-size: 10px; }
+  .cmd-action { color: var(--yellow); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .empty-icon { font-size: 32px; margin-bottom: 10px; }
+
+  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex;
+                     align-items: center; justify-content: center; z-index: 100; flex-direction: column; gap: 12px; }
+  .loading-overlay .spinner { width: 28px; height: 28px; border-width: 3px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spinner"></div>
+  <div style="color:var(--muted); font-size:12px;">Cargando portafolio...</div>
+</div>
+
+<div class="app" id="app" style="display:none;">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">QA <span>Portfolio</span> Commander</div>
+    <span id="sync-pill" class="pill pill-muted">↻ cargando</span>
+    <button class="btn" onclick="reloadData()">↻ Sync MT4</button>
+    <select class="select" id="platform-filter" onchange="setPlatformFilter(this.value)">
+      <option value="ALL">MT4 / MT5</option>
+      <option value="MT4">MT4</option>
+      <option value="MT5">MT5</option>
+    </select>
+    <div class="top-stat">
+      <div class="top-stat-item">
+        <div class="val" id="stat-trades">—</div>
+        <div class="lbl">Trades</div>
+      </div>
+      <div class="top-stat-item">
+        <div class="val" id="stat-systems">—</div>
+        <div class="lbl">Sistemas</div>
+      </div>
+      <div class="top-stat-item">
+        <div class="val" id="stat-profit" style="color:var(--green)">—</div>
+        <div class="lbl">P&L neto</div>
+      </div>
+      <div class="top-stat-item">
+        <div class="val" id="stat-alerts" style="color:var(--red)">—</div>
+        <div class="lbl">Alertas</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="nav-section">Filtros</div>
+    <div class="nav-item active" onclick="setFilter('all',this)">
+      Todos los sistemas <span class="nav-count pill-muted" id="cnt-all">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('cuarentena',this)" style="color:var(--red)">
+      🔴 Cuarentena <span class="nav-count" id="cnt-cuarentena" style="background:#2d0f0f;color:var(--red)">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('reducir_riesgo',this)" style="color:var(--yellow)">
+      🟡 Reducir riesgo <span class="nav-count" id="cnt-reducir" style="background:#2d2208;color:var(--yellow)">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('aumentar_riesgo',this)" style="color:var(--green)">
+      🟢 Aumentar riesgo <span class="nav-count" id="cnt-aumentar" style="background:#0d2e20;color:var(--green)">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('mantener',this)">
+      ⚪ Mantener <span class="nav-count pill-muted" id="cnt-mantener">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('insuficiente_data',this)" style="color:var(--muted)">
+      ⬜ Datos insuf. <span class="nav-count pill-muted" id="cnt-insuf">—</span>
+    </div>
+
+    <div class="nav-section" style="margin-top:24px;">Tipo de cuenta</div>
+    <select class="select" id="type-filter" style="width:100%;" onchange="setTypeFilter(this.value)">
+      <option value="ALL">REAL + DEMO</option>
+      <option value="REAL">Solo REAL</option>
+      <option value="DEMO">Solo DEMO</option>
+    </select>
+
+    <div class="nav-section" style="margin-top:18px;">Cuentas</div>
+    <div id="account-filters"></div>
+
+    <div class="nav-section" style="margin-top:24px;">Umbrales activos</div>
+    <div id="thresholds-display" style="font-size:11px; color:var(--muted); line-height:2;"></div>
+
+    <div class="nav-section" style="margin-top:24px;">Acciones rápidas</div>
+    <button class="btn btn-red" style="width:100%; margin-bottom:6px;"
+            onclick="batchAction('cuarentena','close_by_magic')">
+      ⏹ Detener todos en cuarentena
+    </button>
+    <button class="btn btn-yellow" style="width:100%; margin-bottom:6px;"
+            onclick="batchAction('reducir_riesgo','reduce_lots')">
+      ↓ Reducir lotes (cuarentena+reducir)
+    </button>
+    <button class="btn" style="width:100%;" onclick="showTab('commands')">
+      Ver log de comandos
+    </button>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="tabs">
+      <div class="tab active" id="tab-btn-systems"    onclick="showTab('systems')">Sistemas</div>
+      <div class="tab"        id="tab-btn-top"        onclick="showTab('top')">Top performers</div>
+      <div class="tab"        id="tab-btn-demo-real"  onclick="showTab('demo-real')">Demo vs Real</div>
+      <div class="tab"        id="tab-btn-commands"   onclick="showTab('commands')">Comandos</div>
+    </div>
+
+    <!-- Systems tab -->
+    <div id="view-systems">
+      <div class="card" id="accounts-card">
+        <div class="account-panel-head" onclick="toggleAccountsPanel()">
+          <div class="card-title" style="margin:0;">Cuentas conectadas</div>
+          <span class="pill pill-muted" id="accounts-toggle">ocultar</span>
+        </div>
+        <div class="account-grid" id="account-cards"></div>
+      </div>
+      <div class="metric-grid" id="metrics-row"></div>
+      <div id="systems-list"></div>
+    </div>
+
+    <!-- Top performers -->
+    <div id="view-top" style="display:none;">
+      <div id="top-list"></div>
+    </div>
+
+    <!-- Demo vs Real -->
+    <div id="view-demo-real" style="display:none;">
+      <div id="demo-real-content"></div>
+    </div>
+
+    <!-- Commands tab -->
+    <div id="view-commands" style="display:none;">
+      <div class="card">
+        <div class="card-title">commands.json — pendiente de lectura por QA_Commander.mq4</div>
+        <div id="cmd-log" style="max-height:400px; overflow-y:auto;"></div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button class="btn btn-green" onclick="downloadCommands()">↓ Descargar commands.json</button>
+          <button class="btn btn-red"   onclick="clearCommands()">✕ Limpiar</button>
+          <button class="btn"           onclick="checkResult()">↺ Verificar ejecución MT4</button>
+        </div>
+        <div id="result-status" style="margin-top:10px; font-size:11px; color:var(--muted);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT PANEL -->
+  <div class="chatpanel">
+    <div class="chat-header">
+      <strong>Asistente IA</strong> — análisis cuantitativo
+    </div>
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <div class="quick-btns" id="quick-btns"></div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" rows="2" placeholder="Pregunta sobre tus sistemas..."></textarea>
+      <button class="btn btn-green" onclick="sendChat()" style="padding:8px 14px; align-self:flex-end;">↗</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+let portfolio = null;
+let currentFilter = 'all';
+let commandLog = [];
+let chatHistory = [];
+let executedSystems = new Set();
+let platformFilter = 'ALL';
+let typeFilter = 'ALL';
+let selectedAccounts = new Set();
+let accountsPanelOpen = true;
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadData();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  restoreChat();
+  setQuickPrompts(['¿Cuáles son los 3 mejores sistemas?','Explica las alertas críticas','¿Qué debería detener hoy?','Comparar demo vs real']);
+}
+
+async function loadData() {
+  try {
+    const [portRes, cfgRes] = await Promise.all([
+      fetch('/api/portfolio'), fetch('/api/config')
+    ]);
+    portfolio = await portRes.json();
+    const cfg = await cfgRes.json();
+    updateUI(portfolio, cfg);
+    document.getElementById('sync-pill').className = 'pill pill-green';
+    document.getElementById('sync-pill').textContent = '● sincronizado';
+  } catch(e) {
+    document.getElementById('sync-pill').className = 'pill pill-red';
+    document.getElementById('sync-pill').textContent = '✕ error de conexión';
+  }
+}
+
+async function reloadData() {
+  document.getElementById('sync-pill').className = 'pill pill-yellow';
+  document.getElementById('sync-pill').textContent = '↻ sincronizando...';
+  await fetch('/api/portfolio?reload=true');
+  await loadData();
+  renderSystems();
+}
+
+function updateUI(data, cfg) {
+  const s = data.summary || {};
+  const ac = s.action_counts || {};
+  if (!selectedAccounts.size) (data.accounts || []).forEach(a => selectedAccounts.add(a.id));
+
+  document.getElementById('stat-trades').textContent = (s.total_trades||0).toLocaleString();
+  document.getElementById('stat-systems').textContent = s.total_systems||0;
+  const profit = s.total_profit||0;
+  document.getElementById('stat-profit').textContent = '$'+(profit>=0?'+':'')+profit.toLocaleString('es-CL',{minimumFractionDigits:0});
+  document.getElementById('stat-profit').style.color = profit>=0 ? 'var(--green)' : 'var(--red)';
+
+  const alerts = (ac.cuarentena||0) + (ac.reducir_riesgo||0) + (ac.conflicto||0);
+  document.getElementById('stat-alerts').textContent = alerts;
+
+  document.getElementById('cnt-all').textContent       = filteredSystemsBase().length || s.total_systems || 0;
+  document.getElementById('cnt-cuarentena').textContent= ac.cuarentena||0;
+  document.getElementById('cnt-reducir').textContent   = ac.reducir_riesgo||0;
+  document.getElementById('cnt-aumentar').textContent  = ac.aumentar_riesgo||0;
+  document.getElementById('cnt-mantener').textContent  = ac.mantener||0;
+  document.getElementById('cnt-insuf').textContent     = ac.insuficiente_data||0;
+
+  // Métricas
+  document.getElementById('metrics-row').innerHTML = `
+    <div class="metric"><div class="v" style="color:var(--red)">${ac.cuarentena||0}</div><div class="l">cuarentena</div></div>
+    <div class="metric"><div class="v" style="color:var(--yellow)">${ac.reducir_riesgo||0}</div><div class="l">reducir riesgo</div></div>
+    <div class="metric"><div class="v" style="color:var(--green)">${ac.aumentar_riesgo||0}</div><div class="l">aumentar riesgo</div></div>
+    <div class="metric"><div class="v" style="color:var(--muted)">${ac.mantener||0}</div><div class="l">mantener</div></div>`;
+
+  // Umbrales
+  const t = cfg.risk_thresholds||{};
+  document.getElementById('thresholds-display').innerHTML =
+    Object.entries(t).map(([k,v])=>`<div>${k.replace(/_/g,' ')}: <strong style="color:var(--text)">${v}</strong></div>`).join('');
+
+  renderAccountFilters();
+  renderAccountCards();
+  renderSystems();
+  renderTop();
+  renderDemoReal();
+}
+
+// ─── Systems rendering ───────────────────────────────────────────────────────
+function pfColor(pf)   { return pf>=2.5?'var(--green)':pf>=1.2?'var(--yellow)':'var(--red)'; }
+function ddColor(dd)   { return dd<=20?'var(--green)':dd<=40?'var(--yellow)':'var(--red)'; }
+function pfBarColor(pf){ return pf>=2.5?'#34d399':pf>=1.2?'#fbbf24':'#f87171'; }
+function actionPill(a) {
+  const m = {cuarentena:'pill-red',reducir_riesgo:'pill-yellow',aumentar_riesgo:'pill-green',mantener:'pill-muted',insuficiente_data:'pill-muted',conflicto:'pill-yellow'};
+  const l = {cuarentena:'cuarentena',reducir_riesgo:'reducir riesgo',aumentar_riesgo:'aumentar riesgo',mantener:'mantener',insuficiente_data:'datos insuf.',conflicto:'⚠ conflicto'};
+  return `<span class="pill ${m[a]||'pill-muted'}">${l[a]||a}</span>`;
+}
+
+function globalMetrics(s) { return s.metrics_global || s; }
+function accountMatches(i) {
+  return selectedAccounts.has(i.account_id) &&
+         (platformFilter === 'ALL' || i.platform === platformFilter) &&
+         (typeFilter === 'ALL' || i.account_type === typeFilter);
+}
+function filteredSystemsBase() {
+  return (portfolio?.systems || []).filter(s => (s.instances || []).some(accountMatches));
+}
+function filteredSystems() {
+  let systems = filteredSystemsBase();
+  if (currentFilter !== 'all') {
+    systems = systems.filter(s => s.action === currentFilter || (s.instance_actions || []).includes(currentFilter));
+  }
+  return systems;
+}
+function money(v) {
+  const n = Number(v || 0);
+  return '$' + (n >= 0 ? '+' : '') + n.toLocaleString('es-CL', {maximumFractionDigits:0});
+}
+function renderAccountFilters() {
+  const el = document.getElementById('account-filters');
+  el.innerHTML = (portfolio.accounts || []).map(a => `
+    <label class="filter-check">
+      <input type="checkbox" ${selectedAccounts.has(a.id)?'checked':''} onchange="toggleAccountFilter('${a.id}',this.checked)">
+      <span class="swatch" style="background:${a.color}"></span>
+      <span>${a.label}</span>
+    </label>`).join('');
+}
+function renderAccountCards() {
+  const cards = (portfolio.accounts || []).filter(a => selectedAccounts.has(a.id) && (typeFilter==='ALL' || a.type===typeFilter) && (platformFilter==='ALL' || a.platform===platformFilter));
+  document.getElementById('account-cards').style.display = accountsPanelOpen ? 'grid' : 'none';
+  document.getElementById('accounts-toggle').textContent = accountsPanelOpen ? 'ocultar' : 'mostrar';
+  document.getElementById('account-cards').innerHTML = cards.map(a => `
+    <div class="account-card" style="border-left-color:${a.color}">
+      <div class="name">${a.label}</div>
+      <div class="meta">${a.type} · ${a.platform} · ${a.id}</div>
+      <div class="money" style="color:${a.net_profit>=0?'var(--green)':'var(--red)'}">${money(a.net_profit)}</div>
+      <div class="meta">Balance: ${a.balance == null ? 'n/a' : money(a.balance)} · Equity: ${a.equity == null ? 'n/a' : money(a.equity)}</div>
+      <div class="meta">${a.active_systems} sistemas · ${a.trades} trades</div>
+    </div>`).join('') || '<div class="empty">Sin cuentas para los filtros actuales.</div>';
+}
+function toggleAccountsPanel() {
+  accountsPanelOpen = !accountsPanelOpen;
+  renderAccountCards();
+}
+function setPlatformFilter(value) {
+  platformFilter = value;
+  renderAccountCards(); renderSystems(); renderTop(); renderDemoReal();
+}
+function setTypeFilter(value) {
+  typeFilter = value;
+  renderAccountCards(); renderSystems(); renderTop(); renderDemoReal();
+}
+function toggleAccountFilter(accountId, checked) {
+  if (checked) selectedAccounts.add(accountId);
+  else selectedAccounts.delete(accountId);
+  renderAccountCards(); renderSystems(); renderTop(); renderDemoReal();
+}
+function commandTarget(system) {
+  const instances = (system.instances || []).filter(accountMatches);
+  if (!instances.length) return null;
+  if (instances.length === 1) return instances[0];
+  const labels = instances.map((i, idx)=>`${idx+1}: ${i.account_label} (${i.account_id})`).join('\n');
+  const choice = prompt(`Selecciona cuenta para ${system.label}:\n${labels}`, '1');
+  const idx = Number(choice) - 1;
+  return instances[idx] || null;
+}
+
+function renderSystems() {
+  if (!portfolio) return;
+  let systems = filteredSystems();
+  
+  const el = document.getElementById('systems-list');
+  if (!systems.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>Sin sistemas con este filtro.</div>'; return; }
+
+  el.innerHTML = systems.slice(0, 60).map(s => {
+    const exec = executedSystems.has(s.id);
+    const m = globalMetrics(s);
+    const pfW  = Math.min(m.profit_factor/6*100,100).toFixed(0);
+    const pf   = m.profit_factor>=99 ? '∞' : Number(m.profit_factor).toFixed(2);
+    const isBad = s.action==='cuarentena';
+    return `<div class="sys-row ${exec?'executed':''}" data-id="${s.id}">
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <span class="sys-id">${s.label || s.id}</span>
+          <span class="pill pill-muted">${(s.instances || []).filter(accountMatches).length} cuentas</span>
+          ${actionPill(s.action)}
+          ${exec ? '<span class="pill pill-green">✓ cmd enviado</span>' : ''}
+        </div>
+        <div style="display:flex; gap:10px; margin-top:5px; flex-wrap:wrap; align-items:center;">
+          <div class="bar-bg" style="width:80px;"><div class="bar-fill" style="width:${pfW}%;background:${pfBarColor(m.profit_factor)};"></div></div>
+          <span class="stat-inline">PF <span class="stat-val" style="color:${pfColor(m.profit_factor)}">${pf}</span></span>
+          <span class="stat-inline">DD <span class="stat-val" style="color:${ddColor(m.max_drawdown_pct)}">${Number(m.max_drawdown_pct).toFixed(1)}%</span></span>
+          <span class="stat-inline">Sharpe <span class="stat-val">${Number(m.sharpe).toFixed(2)}</span></span>
+          <span class="stat-inline" style="color:var(--muted)">${m.trades} trades · ${m.win_rate}% win</span>
+        </div>
+      </div>
+      <div class="actions">
+        ${isBad || s.action==='reducir_riesgo' ? `<button class="btn btn-red" onclick="sendCommand('${s.id}','close_by_magic',this)" ${exec?'disabled':''}>⏹ Detener</button>` : ''}
+        ${s.action!=='aumentar_riesgo' ? `<button class="btn btn-yellow" onclick="sendCommand('${s.id}','reduce_lots',this)" ${exec?'disabled':''}>↓ −50%</button>` : ''}
+        ${s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_25',this)" ${exec?'disabled':''}>↑ +25%</button>` : ''}
+        ${s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_50',this)" ${exec?'disabled':''}>↑ +50%</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTop() {
+  if (!portfolio) return;
+  const top = filteredSystemsBase().filter(s=>s.action==='aumentar_riesgo').slice(0,10);
+  document.getElementById('top-list').innerHTML = top.length ? top.map(s=>`
+    <div class="sys-row" style="border-left:2px solid var(--green);">
+      <div style="flex:1;">
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span class="sys-id">${s.label || s.id}</span>
+          <span class="pill pill-muted">${(s.instances || []).filter(accountMatches).length} cuentas</span>
+          <span class="pill pill-green">top performer</span>
+        </div>
+        <div style="display:flex; gap:12px; margin-top:5px; flex-wrap:wrap;">
+          <span class="stat-inline">PF <span class="stat-val" style="color:var(--green)">${Number(globalMetrics(s).profit_factor).toFixed(2)}</span></span>
+          <span class="stat-inline">DD <span class="stat-val" style="color:var(--green)">${Number(globalMetrics(s).max_drawdown_pct).toFixed(1)}%</span></span>
+          <span class="stat-inline">Sharpe <span class="stat-val">${Number(globalMetrics(s).sharpe).toFixed(2)}</span></span>
+          <span class="stat-inline">Win <span class="stat-val">${Number(globalMetrics(s).win_rate).toFixed(0)}%</span></span>
+          <span class="stat-inline" style="color:var(--muted)">${globalMetrics(s).trades} trades</span>
+          <span class="stat-inline" style="color:var(--muted)">${globalMetrics(s).first_trade} → ${globalMetrics(s).last_trade}</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_25',this)">↑ +25%</button>
+        <button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_50',this)">↑ +50%</button>
+      </div>
+    </div>`).join('')
+  : '<div class="empty"><div class="empty-icon">🏆</div>Sin sistemas candidatos a aumentar riesgo con los umbrales actuales.</div>';
+}
+
+function renderDemoReal() {
+  if (!portfolio) return;
+  const systems = filteredSystemsBase().filter(s => (s.instances || []).filter(accountMatches).length > 1);
+  const accounts = (portfolio.accounts || []).filter(a => selectedAccounts.has(a.id) && (typeFilter==='ALL' || a.type===typeFilter) && (platformFilter==='ALL' || a.platform===platformFilter));
+  const el = document.getElementById('demo-real-content');
+  if (!systems.length || accounts.length < 2) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🔄</div>No hay sistemas compartidos entre múltiples cuentas con los filtros actuales.</div>';
+    return;
+  }
+  el.innerHTML = systems.map(s => {
+    const cells = accounts.map(a => {
+      const inst = (s.instances || []).find(i => i.account_id === a.id);
+      if (!inst) return `<div style="background:var(--bg3); border-radius:6px; padding:10px; opacity:.45;"><div style="color:${a.color}; font-size:10px;">${a.label}</div><div class="meta">sin instancia</div></div>`;
+      const m = inst.metrics || {};
+      return `<div style="background:var(--bg3); border-radius:6px; padding:10px; border-left:3px solid ${a.color};">
+        <div style="color:${a.color}; font-size:10px; margin-bottom:6px; letter-spacing:.5px;">${a.label}</div>
+        <div class="stat-inline">PF <span class="stat-val" style="color:${pfColor(m.profit_factor)}">${Number(m.profit_factor).toFixed(2)}</span></div> ·
+        <div class="stat-inline">DD <span class="stat-val" style="color:${ddColor(m.max_drawdown_pct)}">${Number(m.max_drawdown_pct).toFixed(1)}%</span></div>
+        <div style="margin-top:4px;" class="stat-inline">P&L <span class="stat-val" style="color:${m.net_profit>=0?'var(--green)':'var(--red)'}">${money(m.net_profit)}</span></div>
+        <div style="margin-top:4px; color:var(--muted); font-size:10px;">${m.trades} trades · ${inst.action}</div>
+      </div>`;
+    }).join('');
+    return `<div class="sys-row" style="flex-direction:column; align-items:stretch;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong>${s.label || s.id}</strong>
+        ${actionPill(s.action)}
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(${accounts.length}, minmax(180px, 1fr)); gap:10px;">${cells}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Commands ────────────────────────────────────────────────────────────────
+async function sendCommand(systemId, action, btn, suffix='') {
+  const system = (portfolio?.systems || []).find(s => s.id === systemId || s.label === systemId);
+  const target = system ? commandTarget(system) : null;
+  if (!target) { alert('Selecciona una cuenta valida para ejecutar el comando.'); return; }
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const res = await fetch('/api/command', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({system:systemId, account_id:target.account_id, action})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      executedSystems.add(systemId+(suffix||''));
+      commandLog.unshift(data.command);
+      renderCmdLog();
+      addChatMsg('system', `✓ Comando enviado → ${action} sobre ${system.label || systemId} en ${target.account_label}`);
+      renderSystems(); renderTop();
+      btn.textContent = '✓ ok';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Error';
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Error red';
+  }
+}
+
+async function batchAction(filterAction, action) {
+  const systems = filteredSystemsBase().filter(s=>s.action===filterAction || (s.instance_actions || []).includes(filterAction));
+  if (!systems.length) { alert('No hay sistemas con ese filtro.'); return; }
+  const commands = [];
+  systems.forEach(s => (s.instances || []).filter(accountMatches).forEach(i => commands.push({system:s.id, account_id:i.account_id, action})));
+  if (!commands.length) { alert('No hay instancias ejecutables con los filtros actuales.'); return; }
+  if (!confirm(`¿Enviar "${action}" a ${commands.length} instancia(s)?`)) return;
+  for (const cmd of commands) {
+    await fetch('/api/command', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(cmd)});
+    executedSystems.add(cmd.system);
+    await new Promise(r=>setTimeout(r,100));
+  }
+  const res = await fetch('/api/commands');
+  const data = await res.json();
+  commandLog = data.commands || [];
+  renderCmdLog(); renderSystems(); renderTop();
+  addChatMsg('system', `✓ Batch: "${action}" enviado a ${commands.length} instancia(s)`);
+}
+
+function renderCmdLog() {
+  const el = document.getElementById('cmd-log');
+  if (!commandLog.length) { el.innerHTML = '<div class="empty">Sin comandos emitidos aún.</div>'; return; }
+  el.innerHTML = commandLog.map(c=>`
+    <div class="cmd-entry">
+      <span class="cmd-ts">${c.ts?.slice(0,19).replace('T',' ')}</span> ·
+      <span class="cmd-action">${c.action}</span> ·
+      <strong>${c.system}</strong> · ${c.account_label || c.account_id || 'cuenta n/a'} · ${c.platform || 'MT'}
+      <span class="pill ${c.status==='pending'?'pill-yellow':'pill-green'}" style="float:right;">${c.status}</span>
+    </div>`).join('');
+}
+
+function downloadCommands() {
+  fetch('/api/commands').then(r=>r.json()).then(data=>{
+    const blob = new Blob([JSON.stringify({version:'1.0',generated:new Date().toISOString(),commands:data.commands},null,2)],{type:'application/json'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='commands.json'; a.click();
+  });
+}
+
+async function clearCommands() {
+  if (!confirm('¿Limpiar todos los comandos?')) return;
+  await fetch('/api/commands/clear', {method:'POST'});
+  commandLog = []; executedSystems.clear();
+  renderCmdLog(); renderSystems(); renderTop();
+}
+
+async function checkResult() {
+  const res  = await fetch('/api/result');
+  const data = await res.json();
+  const el   = document.getElementById('result-status');
+  if (data.exists) {
+    const d = data.data;
+    el.innerHTML = `<span style="color:var(--green)">✓ MT4 procesó comandos</span> — ${d.ts} · ejecutados: ${d.executed} · errores: ${d.failed} · modo: ${d.auto_execute?'<span style="color:var(--red)">REAL</span>':'DRY RUN'}`;
+  } else {
+    el.innerHTML = `<span style="color:var(--muted)">${data.message || 'QA_Commander aún no ha escrito result.json'}</span>`;
+  }
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+function setFilter(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  renderSystems();
+}
+
+function showTab(name) {
+  ['systems','top','demo-real','commands'].forEach(t=>{
+    document.getElementById('view-'+t).style.display = t===name?'block':'none';
+    document.getElementById('tab-btn-'+t)?.classList.toggle('active',t===name);
+  });
+  if (name==='commands') renderCmdLog();
+}
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+function getWelcomeMessage() {
+  return `Hola. Portafolio cargado: **${portfolio?.summary?.total_trades || 0} trades**, **${portfolio?.summary?.total_systems || 0} sistemas**.\n\nTengo ${portfolio?.systems?.filter(s=>s.action==='cuarentena').length || 0} sistemas en cuarentena y ${portfolio?.systems?.filter(s=>s.action==='reducir_riesgo').length || 0} para reducir riesgo. ¿Qué quieres analizar?`;
+}
+
+function loadSavedChatHistory() {
+  return [];
+}
+
+function saveChatHistory() {
+  chatHistory = chatHistory.slice(-40);
+}
+
+function restoreChat() {
+  chatHistory = loadSavedChatHistory();
+  if (chatHistory.length) {
+    chatHistory.forEach(m => addChatMsg(m.role === 'assistant' ? 'ai' : 'user', m.content));
+  } else {
+    addChatMsg('ai', getWelcomeMessage());
+  }
+
+  document.getElementById('chat-input').value = '';
+}
+
+function addChatMsg(role, text) {
+  const cont = document.getElementById('chat-msgs');
+  const div  = document.createElement('div');
+  if (role==='system') {
+    div.className='msg-system'; div.textContent=text;
+  } else {
+    div.className=`msg-${role}`;
+    if (role==='ai') {
+      div.innerHTML = text
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+        .replace(/`([^`]+)`/g,'<code>$1</code>')
+        .replace(/\n/g,'<br>');
+    } else { div.textContent=text; }
+  }
+  cont.appendChild(div);
+  cont.scrollTop=cont.scrollHeight;
+  return div;
+}
+
+function setQuickPrompts(prompts) {
+  document.getElementById('quick-btns').innerHTML = prompts.map(p=>
+    `<button class="quick-btn" onclick="sendChatPrompt('${p.replace(/'/g,"\\'")}')">↗ ${p}</button>`
+  ).join('');
+}
+
+function sendChatPrompt(text) {
+  document.getElementById('chat-input').value=text; sendChat();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  addChatMsg('user', msg);
+  chatHistory.push({role:'user', content:msg});
+  saveChatHistory();
+
+  const aiDiv = addChatMsg('ai', '<span class="spinner"></span>');
+  let fullText = '';
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message:msg, history:chatHistory.slice(-10)})
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    aiDiv.innerHTML = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        try {
+          const d = JSON.parse(line.slice(5));
+          if (d.error) { aiDiv.innerHTML=`<span style="color:var(--red)">${d.error}</span>`; return; }
+          if (d.text)  {
+            fullText += d.text;
+            aiDiv.innerHTML = fullText
+              .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+              .replace(/`([^`]+)`/g,'<code>$1</code>')
+              .replace(/\n/g,'<br>') + '<span class="cursor-blink">▌</span>';
+            document.getElementById('chat-msgs').scrollTop=99999;
+          }
+          if (d.done) {
+            aiDiv.innerHTML = fullText
+              .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+              .replace(/`([^`]+)`/g,'<code>$1</code>')
+              .replace(/\n/g,'<br>');
+            chatHistory.push({role:'assistant', content:fullText});
+            saveChatHistory();
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    aiDiv.className='msg-ai msg-error';
+    aiDiv.textContent='Error de conexión con el servidor Flask.';
+  }
+}
+
+document.getElementById('chat-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+});
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
