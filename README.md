@@ -4,18 +4,32 @@ Dashboard local para analizar cuentas de trading en MetaTrader 4 y MetaTrader 5,
 
 El sistema usa archivos CSV/JSON en la carpeta comun de MetaTrader. No requiere modificar los EAs de trading existentes.
 
+## Cambios De Esta Version
+
+- Carga automatica de trades desde la carpeta comun de MetaTrader usando archivos `trades_<label>_<account_id>.csv`.
+- Exportacion automatica de historial cerrado desde `QA_AccountMonitor` en MT4 y MT5; `QA_TradeExporter` queda como respaldo manual.
+- Soporte para MT4 y MT5 en el mismo dashboard, normalizando columnas y metricas en el backend Flask.
+- Deteccion multi-cuenta por `account_id`, `label`, `type` y `platform`, con agrupacion global de sistemas por magic number.
+- Seleccion automatica del CSV mas relevante cuando hay mas de un archivo para la misma cuenta.
+- Lectura de estado de cuenta desde `account_history*.json/csv`, `open_trades*.json` y `running_eas*.json` generados por los monitores.
+- Comandos de riesgo multi-cuenta con `account_id` y `platform` para evitar ejecutar acciones en la cuenta equivocada.
+- Chat IA opcional usando API compatible con OpenAI, tomando la clave desde variables de entorno o configuracion local.
+- Limpieza para GitHub: `config.json`, CSV reales, logs, entornos virtuales, caches y binarios compilados MetaTrader quedan fuera del repositorio.
+
 ## Flujo De Trabajo
 
 ```text
 MT4 terminal
-  QA_TradeExporter.mq4   -> trades_<label>_<account_id>.csv
-  QA_AccountMonitor.mq4  -> running_eas, account_history, open_trades
+  QA_AccountMonitor.mq4  -> trades_<label>_<account_id>.csv
+                          -> running_eas, account_history, open_trades
+  QA_TradeExporter.mq4   -> respaldo manual para historial cerrado
   QA_Commander.mq4       <- commands.json
                           -> result.json
 
 MT5 terminal
-  QA_TradeExporter.mq5   -> trades_<label>_<account_id>.csv
-  QA_AccountMonitor.mq5  -> running_eas.json, account_history.json, open_trades.json
+  QA_AccountMonitor.mq5  -> trades_<label>_<account_id>.csv
+                          -> running_eas.json, account_history.json, open_trades.json
+  QA_TradeExporter.mq5   -> respaldo manual para historial cerrado
   QA_Commander.mq5       <- commands.json
                           -> result.json
 
@@ -32,20 +46,21 @@ Python Flask
 
 - `app.py`: servidor Flask local y API del dashboard.
 - `templates/index.html`: interfaz web.
-- `config.json`: ruta de datos, cuentas, plataformas, umbrales, filtros y puerto.
+- `config.example.json`: plantilla segura para crear el `config.json` local.
+- `config.json`: archivo local ignorado por Git con ruta de datos, cuentas, plataformas, umbrales, filtros y puerto.
 - `requirements.txt`: dependencias Python.
 - `start.bat`: inicio rapido en Windows; instala dependencias locales si faltan.
 
 ## Componentes MT4
 
-- `mql4/Scripts/QA_TradeExporter.mq4`: exporta operaciones cerradas a CSV.
-- `mql4/Experts/QA_AccountMonitor.mq4`: exporta estado de cuenta, trades abiertos y EAs activos.
+- `mql4/Scripts/QA_TradeExporter.mq4`: respaldo manual para exportar operaciones cerradas a CSV.
+- `mql4/Experts/QA_AccountMonitor.mq4`: exporta estado de cuenta, trades abiertos, EAs activos e historial cerrado.
 - `mql4/Experts/QA_Commander.mq4`: lee `commands.json`, ejecuta o simula comandos y escribe `result.json`.
 
 ## Componentes MT5
 
-- `mql5/Scripts/QA_TradeExporter.mq5`: usa `HistorySelect()` y `HistoryDealGetTicket()` para exportar historial cerrado al mismo esquema CSV interno.
-- `mql5/Experts/QA_AccountMonitor.mq5`: usa posiciones MT5 y exporta `open_trades.json`, `account_history.json` y `running_eas.json` con `"platform": "MT5"`.
+- `mql5/Scripts/QA_TradeExporter.mq5`: respaldo manual para exportar historial cerrado al mismo esquema CSV interno.
+- `mql5/Experts/QA_AccountMonitor.mq5`: usa posiciones MT5 y exporta historial cerrado CSV, `open_trades.json`, `account_history.json` y `running_eas.json` con `"platform": "MT5"`.
 - `mql5/Experts/QA_Commander.mq5`: lee `commands.json`, ignora comandos de otra plataforma, ejecuta acciones por magic y escribe `result.json`.
 
 ## Carpeta Compartida
@@ -82,8 +97,8 @@ mql4/Experts/QA_Commander.mq4 -> MQL4/Experts
 ```
 
 2. Reinicia MT4 o compila los archivos en MetaEditor.
-3. Ejecuta `QA_TradeExporter` y configura `AccountLabel` como `REAL` o `DEMO`.
-4. Adjunta `QA_AccountMonitor` en cada terminal monitoreado.
+3. Adjunta `QA_AccountMonitor` en cada terminal monitoreado y configura `AccountLabel` como `REAL` o `DEMO`.
+4. Deja `ExportClosedTrades=true`; `ClosedTradesDaysBack=365` exporta el ultimo ano y `0` exporta todo el historial.
 5. Adjunta `QA_Commander` solo donde quieras permitir comandos. Mantener `AutoExecute=false` para pruebas.
 
 ## Instalacion MT5
@@ -97,8 +112,8 @@ mql5/Experts/QA_Commander.mq5 -> MQL5/Experts
 ```
 
 2. Reinicia MT5 o compila los archivos en MetaEditor.
-3. Ejecuta `QA_TradeExporter` y configura `AccountLabel` como `REAL` o `DEMO`.
-4. Adjunta `QA_AccountMonitor` en un grafico del terminal MT5 que quieras monitorear.
+3. Adjunta `QA_AccountMonitor` en un grafico del terminal MT5 que quieras monitorear y configura `AccountLabel` como `REAL` o `DEMO`.
+4. Deja `ExportClosedTrades=true`; `ClosedTradesDaysBack=365` exporta el ultimo ano y `0` exporta todo el historial.
 5. Adjunta `QA_Commander` en el terminal MT5 donde quieras probar comandos.
 6. Valida primero con `AutoExecute=false`; el EA escribira `result.json` sin ejecutar operaciones reales.
 
@@ -134,6 +149,24 @@ trades_TLXQ_-294886245.csv
 ```
 
 La etiqueta del archivo ayuda a inferir metadata, pero la configuracion de `accounts` manda cuando existe una cuenta con el mismo `id`.
+
+## Carga Automatica De Trades
+
+Al iniciar el dashboard, `app.py` lee `data_folder` desde `config.json` y busca todos los archivos que cumplan el patron:
+
+```text
+trades_<label>_<account_id>.csv
+```
+
+La carga es automatica en estos casos:
+
+- `GET /api/portfolio` usa cache en memoria para responder rapido.
+- `GET /api/portfolio?reload=true` fuerza una nueva lectura de archivos.
+- Un hilo en segundo plano recarga el portfolio cada `auto_reload_seconds`.
+- Si hay varios CSV para la misma cuenta, el backend elige el mejor candidato segun coincidencia con `label`, `type`, `csv_pattern` y fecha de modificacion.
+- Si un CSV pertenece a una cuenta no definida en `config.json`, se carga igualmente con metadata provisional y se informa en `warnings`.
+
+Los archivos CSV no se versionan en GitHub porque pueden contener datos reales de trading.
 
 ## Ejecutar Dashboard
 
@@ -259,13 +292,14 @@ Cada Commander ignora comandos que no correspondan a su `platform` o a su numero
 
 ## Validacion Recomendada
 
-1. Revisa los CSV de ejemplo en `test_data/QuantAnalyzer`: contienen el mismo `magic:12345` en tres cuentas.
-2. Verifica que el dashboard muestra un solo sistema global con tres instancias.
-3. Confirma que `conflicto` aparece cuando una instancia esta en `cuarentena` pero el global esta en `mantener`.
-4. En MT5, adjunta `QA_AccountMonitor.mq5` y ejecuta `QA_TradeExporter.mq5`.
-5. Adjunta `QA_Commander.mq5` con `AutoExecute=false`.
-6. Envia `close_by_magic` desde la instancia de una cuenta especifica y revisa que `commands.json` incluya `account_id`.
-7. Cambia `AutoExecute=true` solo despues de confirmar el flujo completo.
+1. Crea `config.json` desde `config.example.json` y apunta `data_folder` a la carpeta comun de MetaTrader.
+2. Adjunta `QA_AccountMonitor` en MT4/MT5 y confirma que genera `trades_<label>_<account_id>.csv`.
+3. Abre `http://localhost:5000` y verifica que `/api/portfolio?reload=true` detecta cuentas, trades y sistemas.
+4. Verifica que el dashboard agrupa como un solo sistema global los trades con el mismo magic number en distintas cuentas.
+5. Confirma que `conflicto` aparece cuando una instancia esta en `cuarentena` pero el global esta en `mantener`.
+6. Adjunta `QA_Commander` con `AutoExecute=false`.
+7. Envia `close_by_magic` desde la instancia de una cuenta especifica y revisa que `commands.json` incluya `account_id` y `platform`.
+8. Cambia `AutoExecute=true` solo despues de confirmar el flujo completo.
 
 ## Notas De Seguridad
 
