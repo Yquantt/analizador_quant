@@ -14,6 +14,18 @@ input bool   UseCommonPath = true;
 input int    DaysBack = 365;
 input string AccountLabel = "REAL";
 
+string AccountLoginString()
+{
+    long login = AccountInfoInteger(ACCOUNT_LOGIN);
+    if(login < 0)
+    {
+        long uint32Range = 65536;
+        uint32Range *= 65536;
+        login += uint32Range;
+    }
+    return IntegerToString(login);
+}
+
 string DealTypeToStr(long type)
 {
     if(type == DEAL_TYPE_BUY) return "BUY";
@@ -73,7 +85,7 @@ void OnStart()
     int commonFlag = UseCommonPath ? FILE_COMMON : 0;
     FolderCreate(OutputFolder, commonFlag);
 
-    string acctNum = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+    string acctNum = AccountLoginString();
     string label = AccountLabel;
     StringToUpper(label);
     string fileName = OutputFolder + "\\trades_" + label + "_" + acctNum + ".csv";
@@ -135,7 +147,7 @@ void OnStart()
         CleanCsv(comment);
 
         FileWrite(fh,
-            IntegerToString((int)ticket),
+            IntegerToString((long)ticket),
             symbol,
             DealTypeToStr(type),
             DoubleToString(HistoryDealGetDouble(ticket, DEAL_VOLUME), 2),

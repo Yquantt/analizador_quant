@@ -19,6 +19,8 @@ input int    ExportIntervalMin = 60;               // Frecuencia de exportación
 input string AccountLabel      = "REAL";           // Etiqueta: REAL o DEMO
 input bool   ExportOnEveryTick = false;            // true solo para debug (¡costoso!)
 input bool   ShowInfoPanel     = true;             // Mostrar panel informativo en el gráfico
+input bool   ExportClosedTrades = true;            // Exportar historial cerrado automaticamente
+input int    ClosedTradesDaysBack = 365;           // Dias de historial cerrado (0 = todo)
 
 //--- Variables internas
 datetime g_lastExport  = 0;
@@ -37,6 +39,7 @@ int OnInit()
     
     //--- Exportar inmediatamente al arrancar
     ExportAll();
+    EventSetTimer(60);
     
     if(ShowInfoPanel) DrawInfoPanel();
     
@@ -49,6 +52,7 @@ void OnDeinit(const int reason)
     //--- Exportar al detener el EA
     g_statusMsg = "Deteniendo...";
     ExportAll();
+    EventKillTimer();
     
     //--- Limpiar panel visual
     ObjectsDeleteAll(0, "QA_");
@@ -59,6 +63,18 @@ void OnDeinit(const int reason)
 
 //+------------------------------------------------------------------+
 void OnTick()
+{
+    CheckScheduledExport();
+}
+
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+    CheckScheduledExport();
+}
+
+//+------------------------------------------------------------------+
+void CheckScheduledExport()
 {
     //--- Verificar si es momento de exportar
     bool shouldExport = ExportOnEveryTick ||
@@ -79,6 +95,7 @@ void ExportAll()
     ExportRunningEAs();
     ExportAccountSnapshot();
     ExportOpenTrades();
+    if(ExportClosedTrades) ExportTradeHistory();
     
     g_lastExport = TimeCurrent();
     g_exportCount++;
@@ -108,31 +125,49 @@ void ExportRunningEAs()
     
     while(chartId >= 0)
     {
-        //--- Obtener nombre del EA en este gráfico
-        string eaName = ChartGetString(chartId, CHART_EXPERT_NAME);
+        //--- En MQL4 no existe CHART_EXPERT_NAME (es constante MQL5).
+        //--- Alternativa: ChartGetString con valor entero 18 funciona en builds
+        //--- recientes de MT4 (build 1340+). Si falla, usamos "unknown".
+        string eaName = "";
         
-        //--- Si hay un EA corriendo (nombre no vacío y no es nuestro propio monitor)
-        if(StringLen(eaName) > 0)
+        //--- En MQL4 no existe CHART_EXPERT_NAME como constante.
+        //--- Cast explícito al enum para evitar error de compilación.
+        ENUM_CHART_PROPERTY_STRING eProp = (ENUM_CHART_PROPERTY_STRING)18;
+        if(!ChartGetString(chartId, eProp, eaName))
+            eaName = "";
+        
+        //--- Fallback: si el gráfico tiene comentario del EA lo usamos
+        if(StringLen(eaName) == 0)
         {
-            string sym = ChartSymbol(chartId);
-            int    tf  = (int)ChartPeriod(chartId);
-            
-            FileWrite(fh,
-                IntegerToString(chartId),
-                sym,
-                TFToString(tf),
-                eaName,
-                TimeToStr(TimeCurrent(), TIME_DATE | TIME_SECONDS),
-                AccountLabel,
-                IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)),
-                AccountInfoString(ACCOUNT_SERVER)
-            );
-            eaCount++;
+            string chartComment = "";
+            ChartGetString(chartId, CHART_COMMENT, chartComment);
+            //--- El comentario del gráfico a veces contiene el nombre del EA
+            if(StringLen(chartComment) > 0)
+                eaName = "[via comment] " + chartComment;
         }
+        
+        string sym = ChartSymbol(chartId);
+        int    tf  = (int)ChartPeriod(chartId);
+        
+        //--- Registrar TODOS los gráficos abiertos (con o sin EA detectado)
+        //--- Python puede cruzar esto con los magic numbers del historial
+        FileWrite(fh,
+            IntegerToString(chartId),
+            sym,
+            TFToString(tf),
+            StringLen(eaName) > 0 ? eaName : "no_ea_detected",
+            TimeToStr(TimeCurrent(), TIME_DATE | TIME_SECONDS),
+            AccountLabel,
+            IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)),
+            AccountInfoString(ACCOUNT_SERVER)
+        );
+        
+        if(StringLen(eaName) > 0 && eaName != "no_ea_detected")
+            eaCount++;
         
         //--- Pasar al siguiente gráfico
         long nextId = ChartNext(chartId);
-        if(nextId == chartId || nextId < 0) break;  // Protección contra bucle infinito
+        if(nextId == chartId || nextId < 0) break;
         chartId = nextId;
     }
     
@@ -247,6 +282,69 @@ void ExportOpenTrades()
 }
 
 //+------------------------------------------------------------------+
+//| Exporta historial de operaciones cerradas (sobrescribe)          |
+//+------------------------------------------------------------------+
+void ExportTradeHistory()
+{
+    string acctNum  = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+    string fileName = GetBasePath() + "\\trades_" + AccountLabel + "_" + acctNum + ".csv";
+    int fh = FileOpen(fileName, FILE_WRITE | FILE_CSV | (UseCommonPath ? FILE_COMMON : 0), ',');
+    if(fh == INVALID_HANDLE) { Print("ERR trades_history: ", GetLastError()); return; }
+
+    FileWrite(fh,
+        "ticket", "symbol", "type", "lots", "open_price", "close_price",
+        "open_time", "close_time", "profit", "swap", "commission", "net_profit",
+        "pips", "magic", "comment", "account", "account_label", "broker", "currency"
+    );
+
+    datetime fromDate = (ClosedTradesDaysBack > 0) ? TimeCurrent() - (datetime)(ClosedTradesDaysBack * 86400) : 0;
+    int totalOrders = OrdersHistoryTotal();
+    int exported = 0;
+    int skipped = 0;
+
+    for(int i = 0; i < totalOrders; i++)
+    {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) { skipped++; continue; }
+        if(OrderType() > OP_SELL) { skipped++; continue; }
+        if(ClosedTradesDaysBack > 0 && OrderCloseTime() < fromDate) { skipped++; continue; }
+
+        string cleanComment = OrderComment();
+        StringReplace(cleanComment, ",", ";");
+        StringReplace(cleanComment, "\n", " ");
+        StringReplace(cleanComment, "\r", " ");
+
+        double netProfit = OrderProfit() + OrderSwap() + OrderCommission();
+        double pips = CalculatePips(OrderSymbol(), OrderType(), OrderOpenPrice(), OrderClosePrice());
+
+        FileWrite(fh,
+            IntegerToString(OrderTicket()),
+            OrderSymbol(),
+            OrderTypeToStr(OrderType()),
+            DoubleToStr(OrderLots(), 2),
+            DoubleToStr(OrderOpenPrice(), 5),
+            DoubleToStr(OrderClosePrice(), 5),
+            TimeToStr(OrderOpenTime(), TIME_DATE | TIME_SECONDS),
+            TimeToStr(OrderCloseTime(), TIME_DATE | TIME_SECONDS),
+            DoubleToStr(OrderProfit(), 2),
+            DoubleToStr(OrderSwap(), 2),
+            DoubleToStr(OrderCommission(), 2),
+            DoubleToStr(netProfit, 2),
+            DoubleToStr(pips, 1),
+            IntegerToString(OrderMagicNumber()),
+            cleanComment,
+            acctNum,
+            AccountLabel,
+            AccountInfoString(ACCOUNT_SERVER),
+            AccountCurrency()
+        );
+        exported++;
+    }
+
+    FileClose(fh);
+    Print(StringFormat("[Trade History] %d operaciones cerradas exportadas (%d omitidas).", exported, skipped));
+}
+
+//+------------------------------------------------------------------+
 //| Panel informativo en pantalla (no intrusivo, solo visual)        |
 //+------------------------------------------------------------------+
 void DrawInfoPanel()
@@ -333,5 +431,36 @@ string TFToString(int tf)
         case PERIOD_W1:  return "W1";
         case PERIOD_MN1: return "MN1";
         default:         return "TF" + IntegerToString(tf);
+    }
+}
+
+double CalculatePips(string symbol, int orderType, double openPrice, double closePrice)
+{
+    double point  = MarketInfo(symbol, MODE_POINT);
+    int    digits = (int)MarketInfo(symbol, MODE_DIGITS);
+
+    if(point <= 0) return 0;
+
+    double pipSize = point;
+    if(digits == 5 || digits == 3) pipSize = point * 10.0;
+
+    double priceDiff = 0;
+    if(orderType == OP_BUY)  priceDiff = closePrice - openPrice;
+    if(orderType == OP_SELL) priceDiff = openPrice  - closePrice;
+
+    return (pipSize > 0) ? NormalizeDouble(priceDiff / pipSize, 1) : 0;
+}
+
+string OrderTypeToStr(int type)
+{
+    switch(type)
+    {
+        case OP_BUY:       return "BUY";
+        case OP_SELL:      return "SELL";
+        case OP_BUYLIMIT:  return "BUY_LIMIT";
+        case OP_SELLLIMIT: return "SELL_LIMIT";
+        case OP_BUYSTOP:   return "BUY_STOP";
+        case OP_SELLSTOP:  return "SELL_STOP";
+        default:           return "OTHER_" + IntegerToString(type);
     }
 }

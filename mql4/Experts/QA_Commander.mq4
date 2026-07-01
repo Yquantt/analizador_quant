@@ -38,6 +38,7 @@ int      g_cmdFailed      = 0;
 string   g_lastAction     = "Ninguna";
 string   g_statusLine     = "Esperando commands.json...";
 datetime g_startTime;
+string   g_lastCommandId  = "";
 
 //--- Mapa de factores de lotes por magic (simulado, en producción usarías array paralelo)
 int    g_magicList[50];
@@ -60,6 +61,9 @@ int OnInit()
     }
     
     if(ShowPanel) DrawPanel();
+
+    int timerSec = CheckIntervalSec < 1 ? 1 : CheckIntervalSec;
+    EventSetTimer(timerSec);
     
     return(INIT_SUCCEEDED);
 }
@@ -67,6 +71,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+    EventKillTimer();
     ObjectsDeleteAll(0, "QAC_");
     ChartRedraw();
     Print("=== QA_Commander DETENIDO ===");
@@ -74,6 +79,18 @@ void OnDeinit(const int reason)
 
 //+------------------------------------------------------------------+
 void OnTick()
+{
+    CheckCommands();
+}
+
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+    CheckCommands();
+}
+
+//+------------------------------------------------------------------+
+void CheckCommands()
 {
     if(TimeCurrent() - g_lastCheck < CheckIntervalSec) return;
     g_lastCheck = TimeCurrent();
@@ -110,6 +127,9 @@ void ProcessCommandFile()
     FileClose(fh);
     
     if(StringLen(jsonContent) < 10) return;
+
+    StringReplace(jsonContent, "\": \"", "\":\"");
+    StringReplace(jsonContent, "\": ", "\":");
     
     //--- Parsear array de comandos (parser JSON manual simple)
     ParseAndExecuteCommands(jsonContent);
@@ -127,7 +147,7 @@ void ParseAndExecuteCommands(string json)
     //--- Buscar cada objeto de comando {
     while(true)
     {
-        int tsPos = StringFind(json, "\"ts\"", startSearch);
+        int tsPos = StringFind(json, "\"command_id\"", startSearch);
         if(tsPos < 0) break;
 
         int objStart = tsPos;
@@ -146,14 +166,22 @@ void ParseAndExecuteCommands(string json)
         string status = ExtractField(obj, "status");
         string platform = ExtractField(obj, "platform");
         string accountId = ExtractField(obj, "account_id");
+        string commandId = ExtractField(obj, "command_id");
+        string sentToEaAt = ExtractField(obj, "sent_to_ea_at");
         
-        //--- Solo procesar comandos pendientes
-        if(status == "pending" &&
+        //--- Solo procesar comandos identificados, enviados y no ejecutados antes
+        if(StringLen(commandId) > 0 &&
+           StringLen(sentToEaAt) > 0 &&
+           IsExecutableStatus(status) &&
            (platform == "" || platform == "MT4") &&
            (accountId == "" || accountId == IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN))) &&
+           !IsCommandProcessed(commandId) &&
            StringLen(system) > 0 && StringLen(action) > 0)
         {
-            ExecuteCommand(system, action, ts);
+            MarkCommandProcessed(commandId);
+            WriteCommandResult(commandId, "ack", true, "acknowledged");
+            bool ok = ExecuteCommand(system, action, ts, commandId);
+            WriteCommandResult(commandId, ok ? "executed" : "failed", ok, ok ? "done" : "failed");
             processed++;
         }
         
@@ -161,7 +189,7 @@ void ParseAndExecuteCommands(string json)
         if(startSearch >= StringLen(json)) break;
     }
     
-    if(processed > 0)
+    if(true)
     {
         g_statusLine = TimeToStr(TimeCurrent()) + " → " + IntegerToString(processed) + " cmd(s) procesado(s)";
         Print(StringFormat("[QA_Commander] %d comandos procesados.", processed));
@@ -173,7 +201,7 @@ void ParseAndExecuteCommands(string json)
 //+------------------------------------------------------------------+
 //| Ejecuta un comando individual                                     |
 //+------------------------------------------------------------------+
-void ExecuteCommand(string system, string action, string ts)
+bool ExecuteCommand(string system, string action, string ts, string commandId)
 {
     Print(StringFormat("[CMD] Sistema: %s | Acción: %s | AutoExecute: %s",
           system, action, AutoExecute ? "SI" : "NO"));
@@ -188,6 +216,7 @@ void ExecuteCommand(string system, string action, string ts)
         magic = (int)StringToInteger(magicStr);
     }
     
+    g_lastCommandId = commandId;
     bool success = false;
     
     if(action == "close_by_magic" && magic > 0)
@@ -252,11 +281,12 @@ void ExecuteCommand(string system, string action, string ts)
     {
         Print("[CMD] Acción no reconocida: " + action + " para sistema: " + system);
         g_cmdFailed++;
-        return;
+        return false;
     }
     
     if(success) g_cmdExecuted++;
     else        g_cmdFailed++;
+    return success;
 }
 
 //+------------------------------------------------------------------+
@@ -426,8 +456,9 @@ void WriteResultFile(int processed)
     if(fh == INVALID_HANDLE) return;
     
     string json = StringFormat(
-        "{\"ts\":\"%s\",\"processed\":%d,\"executed\":%d,\"failed\":%d,\"auto_execute\":%s}",
+        "{\"ts\":\"%s\",\"platform\":\"MT4\",\"last_command_id\":\"%s\",\"processed\":%d,\"executed\":%d,\"failed\":%d,\"auto_execute\":%s}",
         TimeToStr(TimeCurrent(), TIME_DATE | TIME_SECONDS),
+        JsonEscape(g_lastCommandId),
         processed,
         g_cmdExecuted,
         g_cmdFailed,
@@ -436,6 +467,77 @@ void WriteResultFile(int processed)
     
     FileWriteString(fh, json);
     FileClose(fh);
+}
+
+bool IsExecutableStatus(string status)
+{
+    return status == "pending" || status == "sent" || status == "ack";
+}
+
+string ProcessedFileName()
+{
+    return CommandsFolder + "\\processed_MT4_" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)) + ".txt";
+}
+
+bool IsCommandProcessed(string commandId)
+{
+    string filePath = ProcessedFileName();
+    int commonFlag = UseCommonPath ? FILE_COMMON : 0;
+    if(!FileIsExist(filePath, commonFlag)) return false;
+    int fh = FileOpen(filePath, FILE_READ | FILE_TXT | commonFlag);
+    if(fh == INVALID_HANDLE) return false;
+    while(!FileIsEnding(fh))
+    {
+        string item = FileReadString(fh);
+        if(item == commandId)
+        {
+            FileClose(fh);
+            return true;
+        }
+    }
+    FileClose(fh);
+    return false;
+}
+
+void MarkCommandProcessed(string commandId)
+{
+    string filePath = ProcessedFileName();
+    int commonFlag = UseCommonPath ? FILE_COMMON : 0;
+    int fh = FileOpen(filePath, FILE_READ | FILE_WRITE | FILE_TXT | commonFlag);
+    if(fh == INVALID_HANDLE)
+        fh = FileOpen(filePath, FILE_WRITE | FILE_TXT | commonFlag);
+    if(fh == INVALID_HANDLE) return;
+    FileSeek(fh, 0, SEEK_END);
+    FileWriteString(fh, commandId + "\n");
+    FileClose(fh);
+}
+
+void WriteCommandResult(string commandId, string status, bool success, string message)
+{
+    string filePath = CommandsFolder + "\\result_" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)) + ".json";
+    int fh = FileOpen(filePath, FILE_WRITE | FILE_TXT | (UseCommonPath ? FILE_COMMON : 0));
+    if(fh == INVALID_HANDLE) return;
+    string json = StringFormat(
+        "{\"ts\":\"%s\",\"platform\":\"MT4\",\"account_id\":\"%s\",\"command_id\":%s,\"status\":\"%s\",\"success\":%s,\"message\":\"%s\",\"auto_execute\":%s}",
+        TimeToStr(TimeCurrent(), TIME_DATE | TIME_SECONDS),
+        IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)),
+        commandId,
+        status,
+        success ? "true" : "false",
+        JsonEscape(message),
+        AutoExecute ? "true" : "false"
+    );
+    FileWriteString(fh, json);
+    FileClose(fh);
+}
+
+string JsonEscape(string value)
+{
+    StringReplace(value, "\\", "\\\\");
+    StringReplace(value, "\"", "\\\"");
+    StringReplace(value, "\r", " ");
+    StringReplace(value, "\n", " ");
+    return value;
 }
 
 //+------------------------------------------------------------------+

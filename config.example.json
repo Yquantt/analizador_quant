@@ -1,6 +1,6 @@
 {
-  "mt4_data_folder": "<RUTA_A_CARPETA_QUANTANALYZER>",
-  "data_folder": "<RUTA_A_CARPETA_QUANTANALYZER>",
+  "mt4_data_folder": "%APPDATA%/MetaQuotes/Terminal/Common/Files/QuantAnalyzer",
+  "data_folder": "%APPDATA%/MetaQuotes/Terminal/Common/Files/QuantAnalyzer",
   "deepseek_base_url": "https://api.deepseek.com",
   "deepseek_model": "deepseek-chat",
   "accounts": [

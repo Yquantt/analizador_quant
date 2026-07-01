@@ -103,6 +103,17 @@
   .stat-inline { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .stat-val { font-weight: 600; }
   .actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .system-detail { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .detail-metric { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px; }
+  .detail-metric .l { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+  .detail-metric .v { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .detail-chart { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+  .detail-chart svg { width: 100%; height: 160px; display: block; overflow: visible; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .detail-table th, .detail-table td { border-bottom: 1px solid var(--border); padding: 6px; text-align: left; }
+  .detail-table th { color: var(--muted); font-weight: 400; text-transform: uppercase; font-size: 10px; }
+  .detail-note { color: var(--muted); font-size: 10px; margin-top: 6px; }
 
   /* ── Tabs ── */
   .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
@@ -146,6 +157,18 @@
                margin-bottom: 5px; border-left: 2px solid var(--green); }
   .cmd-ts { color: var(--muted); font-size: 10px; }
   .cmd-action { color: var(--yellow); }
+  .decision-row { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+                  padding: 10px; margin-bottom: 8px; }
+  .decision-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 5px; }
+  .decision-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .decision-form textarea { grid-column: 1 / -1; min-height: 70px; resize: vertical; }
+  .field { background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+           border-radius: 6px; padding: 7px 9px; font-family: var(--font); font-size: 12px; width: 100%; }
+  .field:focus { outline: none; border-color: var(--accent); }
+  .decision-note { color: var(--muted); font-size: 10px; margin-top: 5px; overflow-wrap: anywhere; }
+  .decision-status { display:none; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 11px; }
+  .decision-status.error { display:block; background:#2d0f0f; border:1px solid #4a1a1a; color:var(--red); }
+  .decision-status.ok { display:block; background:#0d2e20; border:1px solid #1a4a30; color:var(--green); }
 
   /* ── Scrollbar ── */
   ::-webkit-scrollbar { width: 5px; }
@@ -174,7 +197,7 @@
   <div class="topbar">
     <div class="logo">QA <span>Portfolio</span> Commander</div>
     <span id="sync-pill" class="pill pill-muted">↻ cargando</span>
-    <button class="btn" onclick="reloadData()">↻ Sync MT4</button>
+    <button class="btn" onclick="reloadData()">↻ Sync MT4/MT5</button>
     <select class="select" id="platform-filter" onchange="setPlatformFilter(this.value)">
       <option value="ALL">MT4 / MT5</option>
       <option value="MT4">MT4</option>
@@ -214,6 +237,9 @@
     </div>
     <div class="nav-item" onclick="setFilter('aumentar_riesgo',this)" style="color:var(--green)">
       🟢 Aumentar riesgo <span class="nav-count" id="cnt-aumentar" style="background:#0d2e20;color:var(--green)">—</span>
+    </div>
+    <div class="nav-item" onclick="setFilter('revision_manual',this)" style="color:var(--yellow)">
+      Revisión manual <span class="nav-count" id="cnt-revision" style="background:#2d2208;color:var(--yellow)">—</span>
     </div>
     <div class="nav-item" onclick="setFilter('mantener',this)">
       ⚪ Mantener <span class="nav-count pill-muted" id="cnt-mantener">—</span>
@@ -255,6 +281,7 @@
       <div class="tab active" id="tab-btn-systems"    onclick="showTab('systems')">Sistemas</div>
       <div class="tab"        id="tab-btn-top"        onclick="showTab('top')">Top performers</div>
       <div class="tab"        id="tab-btn-demo-real"  onclick="showTab('demo-real')">Demo vs Real</div>
+      <div class="tab"        id="tab-btn-decisions"  onclick="showTab('decisions')">Decisiones</div>
       <div class="tab"        id="tab-btn-commands"   onclick="showTab('commands')">Comandos</div>
     </div>
 
@@ -266,6 +293,10 @@
           <span class="pill pill-muted" id="accounts-toggle">ocultar</span>
         </div>
         <div class="account-grid" id="account-cards"></div>
+      </div>
+      <div class="card" id="discovered-card" style="display:none;">
+        <div class="card-title">Cuentas detectadas pendientes</div>
+        <div id="discovered-accounts"></div>
       </div>
       <div class="metric-grid" id="metrics-row"></div>
       <div id="systems-list"></div>
@@ -279,6 +310,19 @@
     <!-- Demo vs Real -->
     <div id="view-demo-real" style="display:none;">
       <div id="demo-real-content"></div>
+    </div>
+
+    <!-- Decisions tab -->
+    <div id="view-decisions" style="display:none;">
+      <div id="decision-status" class="decision-status"></div>
+      <div class="card">
+        <div class="card-title">Decisiones pendientes de revision</div>
+        <div id="pending-decisions"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Diario de decisiones</div>
+        <div id="decision-log"></div>
+      </div>
     </div>
 
     <!-- Commands tab -->
@@ -322,6 +366,12 @@ let platformFilter = 'ALL';
 let typeFilter = 'ALL';
 let selectedAccounts = new Set();
 let accountsPanelOpen = true;
+let discoveredAccounts = [];
+let decisions = [];
+let metricSnapshots = [];
+let pendingDecisionDefaults = null;
+let decisionLoadError = null;
+let expandedSystemId = null;
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 async function init() {
@@ -334,12 +384,29 @@ async function init() {
 
 async function loadData() {
   try {
-    const [portRes, cfgRes] = await Promise.all([
-      fetch('/api/portfolio'), fetch('/api/config')
+    const [portRes, cfgRes, discoveredRes] = await Promise.all([
+      fetch('/api/portfolio'), fetch('/api/config'), fetch('/api/accounts/discovered?status=pending_approval')
     ]);
     portfolio = await portRes.json();
     const cfg = await cfgRes.json();
+    discoveredAccounts = (await discoveredRes.json()).accounts || [];
+    decisionLoadError = null;
+    try {
+      const decisionsRes = await fetch('/api/decisions?limit=500');
+      if (!decisionsRes.ok) throw new Error(`HTTP ${decisionsRes.status}`);
+      decisions = (await decisionsRes.json()).decisions || [];
+    } catch (e) {
+      decisions = [];
+      decisionLoadError = `No se pudieron cargar decisiones: ${e.message || e}`;
+    }
+    try {
+      const snapshotsRes = await fetch('/api/strategy-metrics?limit=1000');
+      metricSnapshots = snapshotsRes.ok ? ((await snapshotsRes.json()).snapshots || []) : [];
+    } catch (e) {
+      metricSnapshots = [];
+    }
     updateUI(portfolio, cfg);
+    if (decisionLoadError) setDecisionStatus(decisionLoadError, 'error');
     document.getElementById('sync-pill').className = 'pill pill-green';
     document.getElementById('sync-pill').textContent = '● sincronizado';
   } catch(e) {
@@ -351,7 +418,7 @@ async function loadData() {
 async function reloadData() {
   document.getElementById('sync-pill').className = 'pill pill-yellow';
   document.getElementById('sync-pill').textContent = '↻ sincronizando...';
-  await fetch('/api/portfolio?reload=true');
+  await fetch('/api/sync/trades', {method:'POST'});
   await loadData();
   renderSystems();
 }
@@ -374,6 +441,7 @@ function updateUI(data, cfg) {
   document.getElementById('cnt-cuarentena').textContent= ac.cuarentena||0;
   document.getElementById('cnt-reducir').textContent   = ac.reducir_riesgo||0;
   document.getElementById('cnt-aumentar').textContent  = ac.aumentar_riesgo||0;
+  document.getElementById('cnt-revision').textContent  = ac.revision_manual||0;
   document.getElementById('cnt-mantener').textContent  = ac.mantener||0;
   document.getElementById('cnt-insuf').textContent     = ac.insuficiente_data||0;
 
@@ -382,6 +450,7 @@ function updateUI(data, cfg) {
     <div class="metric"><div class="v" style="color:var(--red)">${ac.cuarentena||0}</div><div class="l">cuarentena</div></div>
     <div class="metric"><div class="v" style="color:var(--yellow)">${ac.reducir_riesgo||0}</div><div class="l">reducir riesgo</div></div>
     <div class="metric"><div class="v" style="color:var(--green)">${ac.aumentar_riesgo||0}</div><div class="l">aumentar riesgo</div></div>
+    <div class="metric"><div class="v" style="color:var(--yellow)">${ac.revision_manual||0}</div><div class="l">revisión manual</div></div>
     <div class="metric"><div class="v" style="color:var(--muted)">${ac.mantener||0}</div><div class="l">mantener</div></div>`;
 
   // Umbrales
@@ -394,19 +463,50 @@ function updateUI(data, cfg) {
   renderSystems();
   renderTop();
   renderDemoReal();
+  renderDiscoveredAccounts();
+  renderDecisions();
 }
 
 // ─── Systems rendering ───────────────────────────────────────────────────────
 function pfColor(pf)   { return pf>=2.5?'var(--green)':pf>=1.2?'var(--yellow)':'var(--red)'; }
-function ddColor(dd)   { return dd<=20?'var(--green)':dd<=40?'var(--yellow)':'var(--red)'; }
+function isMetricAvailable(value) { return value !== null && value !== undefined && Number.isFinite(Number(value)); }
+function metricText(value, digits=2, suffix='') { return isMetricAvailable(value) ? Number(value).toFixed(digits) + suffix : 'n/a'; }
+function ddColor(dd)   { return isMetricAvailable(dd) ? (dd<=20?'var(--green)':dd<=40?'var(--yellow)':'var(--red)') : 'var(--muted)'; }
 function pfBarColor(pf){ return pf>=2.5?'#34d399':pf>=1.2?'#fbbf24':'#f87171'; }
 function actionPill(a) {
+  if (a === 'revision_manual') return '<span class="pill pill-yellow">revision manual</span>';
   const m = {cuarentena:'pill-red',reducir_riesgo:'pill-yellow',aumentar_riesgo:'pill-green',mantener:'pill-muted',insuficiente_data:'pill-muted',conflicto:'pill-yellow'};
   const l = {cuarentena:'cuarentena',reducir_riesgo:'reducir riesgo',aumentar_riesgo:'aumentar riesgo',mantener:'mantener',insuficiente_data:'datos insuf.',conflicto:'⚠ conflicto'};
   return `<span class="pill ${m[a]||'pill-muted'}">${l[a]||a}</span>`;
 }
 
 function globalMetrics(s) { return s.metrics_global || s; }
+function realDrawdownReliable(m) {
+  return m && m.balance_drawdown_reliable === true;
+}
+function drawdownBasisText(m) {
+  if (!m) return 'sin base';
+  if (m.drawdown_basis === 'balance_after') return 'balance real';
+  if (m.drawdown_basis === 'equity_after') return 'equity real';
+  if (m.drawdown_basis === 'max_instance_balance_after') return 'peor instancia';
+  if (m.drawdown_basis === 'mixed_accounts_unreliable') return 'multi-cuenta sin DD real';
+  if (m.drawdown_basis) return String(m.drawdown_basis).replaceAll('_', ' ');
+  return realDrawdownReliable(m) ? 'balance/equity' : 'sin DD real';
+}
+function drawdownHtml(m, compact=false) {
+  const realDd = realDrawdownReliable(m) ? (m.balance_max_drawdown_pct ?? m.max_drawdown_pct) : null;
+  const pnlDd = m?.pnl_curve_max_drawdown_pct;
+  const basis = drawdownBasisText(m);
+  const real = `<span class="stat-inline">DD real <span class="stat-val" style="color:${ddColor(realDd)}">${metricText(realDd, 1, '%')}</span></span>`;
+  const pnl = isMetricAvailable(pnlDd) ? `<span class="stat-inline" style="color:var(--muted)">DD PnL ${metricText(pnlDd, 1, '%')}</span>` : '';
+  const flag = realDrawdownReliable(m)
+    ? `<span class="pill pill-muted">${basis}</span>`
+    : '<span class="pill pill-yellow">sin DD real</span>';
+  return compact ? `${real} ${flag}` : `${real} ${pnl} ${flag}`;
+}
+function riskCommandBlocked(m) {
+  return !m || m.risk_metrics_reliable === false || m.balance_drawdown_reliable !== true;
+}
 function accountMatches(i) {
   return selectedAccounts.has(i.account_id) &&
          (platformFilter === 'ALL' || i.platform === platformFilter) &&
@@ -425,6 +525,176 @@ function filteredSystems() {
 function money(v) {
   const n = Number(v || 0);
   return '$' + (n >= 0 ? '+' : '') + n.toLocaleString('es-CL', {maximumFractionDigits:0});
+}
+function signedNumber(v, digits=2) {
+  const n = Number(v || 0);
+  return (n >= 0 ? '+' : '') + n.toLocaleString('es-CL', {minimumFractionDigits:digits, maximumFractionDigits:digits});
+}
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function allFilteredTrades(system) {
+  return (system.instances || [])
+    .filter(accountMatches)
+    .flatMap(instance => (instance.trades || []).map(trade => ({
+      ...trade,
+      account_label: trade.account_label || instance.account_label,
+      account_id: trade.account_id || instance.account_id,
+      account_color: trade.account_color || instance.account_color,
+      platform: trade.platform || instance.platform,
+    })))
+    .sort((a,b) => String(a.close_time || '').localeCompare(String(b.close_time || '')));
+}
+function recentMetrics(trades, count) {
+  const slice = trades.slice(-count);
+  const pnl = slice.reduce((sum, trade) => sum + Number(trade.net_profit || trade.profit || 0), 0);
+  const wins = slice.filter(trade => Number(trade.net_profit || trade.profit || 0) > 0).length;
+  return {
+    trades: slice.length,
+    pnl,
+    winRate: slice.length ? wins / slice.length * 100 : 0,
+  };
+}
+function curvePoints(trades) {
+  let running = 0;
+  return trades.map((trade, idx) => {
+    running += Number(trade.net_profit || trade.profit || 0);
+    return {idx, value: Number(running.toFixed(2)), ts: trade.close_time || ''};
+  });
+}
+function chartSvg(points) {
+  if (!points.length) return '<div class="empty">Sin trades para graficar con los filtros actuales.</div>';
+  const width = 720, height = 160, pad = 18;
+  const values = points.map(p => p.value);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = max - min || 1;
+  const step = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const xy = points.map((p, i) => {
+    const x = pad + i * step;
+    const y = height - pad - ((p.value - min) / span) * (height - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const zeroY = height - pad - ((0 - min) / span) * (height - pad * 2);
+  const end = points[points.length - 1];
+  const stroke = end.value >= 0 ? '#34d399' : '#f87171';
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Curva PnL acumulado">
+    <line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${width-pad}" y2="${zeroY.toFixed(1)}" stroke="#252a38" stroke-width="1"/>
+    <polyline fill="none" stroke="${stroke}" stroke-width="2.5" points="${xy}"/>
+    <circle cx="${(pad + (points.length - 1) * step).toFixed(1)}" cy="${(height - pad - ((end.value - min) / span) * (height - pad * 2)).toFixed(1)}" r="4" fill="${stroke}"/>
+    <text x="${pad}" y="12" fill="#6b7280" font-size="10">Max ${money(max)}</text>
+    <text x="${pad}" y="${height-4}" fill="#6b7280" font-size="10">Min ${money(min)}</text>
+    <text x="${width-pad-120}" y="12" fill="${stroke}" font-size="11">Final ${money(end.value)}</text>
+  </svg>`;
+}
+function symbolBreakdownRows(trades) {
+  const bySymbol = {};
+  trades.forEach(trade => {
+    const key = trade.symbol || 'unknown';
+    const pnl = Number(trade.net_profit || trade.profit || 0);
+    bySymbol[key] ||= {symbol:key, trades:0, pnl:0, wins:0};
+    bySymbol[key].trades += 1;
+    bySymbol[key].pnl += pnl;
+    if (pnl > 0) bySymbol[key].wins += 1;
+  });
+  return Object.values(bySymbol).sort((a,b) => Math.abs(b.pnl) - Math.abs(a.pnl)).slice(0, 6);
+}
+function renderSystemDetail(system) {
+  const m = globalMetrics(system);
+  const trades = allFilteredTrades(system);
+  const r20 = recentMetrics(trades, 20);
+  const r50 = recentMetrics(trades, 50);
+  const lastTrade = trades[trades.length - 1] || {};
+  const chart = chartSvg(curvePoints(trades));
+  const accounts = (system.instances || []).filter(accountMatches);
+  const symbolRows = symbolBreakdownRows(trades);
+  return `<div class="system-detail" onclick="event.stopPropagation()">
+    <div class="detail-grid">
+      <div class="detail-metric"><div class="l">P&L global</div><div class="v" style="color:${m.net_profit>=0?'var(--green)':'var(--red)'}">${money(m.net_profit)}</div></div>
+      <div class="detail-metric"><div class="l">Expectancy</div><div class="v">${signedNumber(m.expectancy, 2)}</div></div>
+      <div class="detail-metric"><div class="l">Avg trade</div><div class="v">${signedNumber(m.avg_trade, 2)}</div></div>
+      <div class="detail-metric"><div class="l">Payoff</div><div class="v">${metricText(m.payoff_ratio, 2)}</div></div>
+      <div class="detail-metric"><div class="l">Avg win</div><div class="v" style="color:var(--green)">${money(m.average_win)}</div></div>
+      <div class="detail-metric"><div class="l">Avg loss</div><div class="v" style="color:var(--red)">${money(-Math.abs(Number(m.average_loss || 0)))}</div></div>
+      <div class="detail-metric"><div class="l">Racha perdida</div><div class="v">${m.longest_losing_streak || 0}</div></div>
+      <div class="detail-metric"><div class="l">Ultimos 20</div><div class="v" style="color:${r20.pnl>=0?'var(--green)':'var(--red)'}">${money(r20.pnl)}</div></div>
+      <div class="detail-metric"><div class="l">Ultimos 50</div><div class="v" style="color:${r50.pnl>=0?'var(--green)':'var(--red)'}">${money(r50.pnl)}</div></div>
+      <div class="detail-metric"><div class="l">Ultimo trade</div><div class="v">${esc(String(lastTrade.close_time || 'n/a').slice(0,10))}</div></div>
+    </div>
+    <div class="detail-chart">
+      <div class="card-title">Curva P&L acumulado de la estrategia</div>
+      ${chart}
+      <div class="detail-note">Calculada desde trades cerrados del sistema y respetando filtros de cuenta, tipo y plataforma.</div>
+    </div>
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px;">
+      <div>
+        <div class="card-title">Por cuenta</div>
+        <table class="detail-table"><thead><tr><th>Cuenta</th><th>PF</th><th>P&L</th><th>DD real</th><th>Accion</th></tr></thead><tbody>
+          ${accounts.map(i => {
+            const im = i.metrics || {};
+            return `<tr><td>${esc(i.account_label || i.account_id)}</td><td>${metricText(im.profit_factor, 2)}</td><td style="color:${im.net_profit>=0?'var(--green)':'var(--red)'}">${money(im.net_profit)}</td><td>${metricText(im.balance_max_drawdown_pct ?? im.max_drawdown_pct, 1, '%')}</td><td>${esc(i.action || '')}</td></tr>`;
+          }).join('') || '<tr><td colspan="5">Sin cuentas visibles.</td></tr>'}
+        </tbody></table>
+      </div>
+      <div>
+        <div class="card-title">Por simbolo</div>
+        <table class="detail-table"><thead><tr><th>Simbolo</th><th>Trades</th><th>Win</th><th>P&L</th></tr></thead><tbody>
+          ${symbolRows.map(row => `<tr><td>${esc(row.symbol)}</td><td>${row.trades}</td><td>${row.trades ? (row.wins / row.trades * 100).toFixed(0) : 0}%</td><td style="color:${row.pnl>=0?'var(--green)':'var(--red)'}">${money(row.pnl)}</td></tr>`).join('') || '<tr><td colspan="4">Sin simbolos.</td></tr>'}
+        </tbody></table>
+      </div>
+    </div>
+  </div>`;
+}
+function toggleSystemDetail(systemId) {
+  expandedSystemId = expandedSystemId === systemId ? null : systemId;
+  renderSystems();
+}
+function latestDecisionFor(system, instance=null) {
+  const rows = decisions.filter(d => {
+    if (instance && d.instance_id && instance.instance_id && d.instance_id !== instance.instance_id) return false;
+    if (instance && d.account_key && instance.account_key && d.account_key !== instance.account_key) return false;
+    if (d.strategy_id && (d.strategy_id === system.strategy_id || d.strategy_id === system.id)) return true;
+    if (d.magic != null && String(d.magic) === String(system.magic)) return true;
+    return false;
+  });
+  return rows.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0] || null;
+}
+function latestMetricSnapshotFor(system, instance=null) {
+  const rows = metricSnapshots.filter(s => {
+    if (instance) {
+      if (s.instance_id && instance.instance_id && s.instance_id === instance.instance_id) return true;
+      if (s.account_key && instance.account_key && s.account_key === instance.account_key && s.strategy_id === (instance.strategy_id || system.strategy_id)) return true;
+      return false;
+    }
+    return s.strategy_id && s.strategy_id === (system.strategy_id || system.id) && !s.instance_id;
+  });
+  return rows.sort((a,b)=>String(b.calculated_at||'').localeCompare(String(a.calculated_at||'')))[0] || null;
+}
+function decisionPending(d) {
+  if (!d) return false;
+  return !d.outcome_7d || !d.outcome_30d;
+}
+function decisionSummaryHtml(d) {
+  if (!d) return '<div class="decision-note">Sin decision registrada.</div>';
+  const pending = decisionPending(d) ? '<span class="pill pill-yellow">outcome pendiente</span>' : '<span class="pill pill-green">outcome completo</span>';
+  return `<div class="decision-note">
+    Ultima decision: <strong>${esc(d.decision_type)}</strong> · ${esc(d.reason_category)} · ${esc(String(d.created_at || '').slice(0,19))}
+    · revision ${d.review_after_days ?? 'n/a'}d ${pending}
+  </div>`;
+}
+function instanceDecisionListHtml(system) {
+  const instances = (system.instances || []).filter(accountMatches);
+  if (!instances.length) return '';
+  return `<div style="margin-top:8px; display:grid; gap:5px;">
+    ${instances.map(i => {
+      const d = latestDecisionFor(system, i);
+      return `<div class="decision-note">
+        <strong>${esc(i.account_label || i.account_id)}</strong> · ${esc(i.platform || '')}
+        ${decisionSummaryHtml(d)}
+        <button class="btn" style="margin-top:5px;" onclick="openDecisionForm('${system.id}','${i.account_id}')">Registrar decision instancia</button>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 function renderAccountFilters() {
   const el = document.getElementById('account-filters');
@@ -447,6 +717,56 @@ function renderAccountCards() {
       <div class="meta">Balance: ${a.balance == null ? 'n/a' : money(a.balance)} · Equity: ${a.equity == null ? 'n/a' : money(a.equity)}</div>
       <div class="meta">${a.active_systems} sistemas · ${a.trades} trades</div>
     </div>`).join('') || '<div class="empty">Sin cuentas para los filtros actuales.</div>';
+}
+
+function renderDiscoveredAccounts() {
+  const card = document.getElementById('discovered-card');
+  const el = document.getElementById('discovered-accounts');
+  const rows = discoveredAccounts || [];
+  card.style.display = rows.length ? 'block' : 'none';
+  if (!rows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = rows.map(a => `
+    <div class="sys-row" style="align-items:flex-start;">
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <strong>${a.label || a.account_id}</strong>
+          <span class="pill pill-yellow">pendiente</span>
+          <span class="pill pill-muted">${a.platform || 'MT'} · ${(a.account_type || '').toUpperCase()}</span>
+        </div>
+        <div class="meta" style="margin-top:4px;">Login ${a.account_id} · ${a.server || 'unknown'} · ${a.source_file || 'archivo n/a'}</div>
+        <div class="meta">Visto: ${(a.first_seen_at || '').slice(0,19)} → ${(a.last_seen_at || '').slice(0,19)}</div>
+      </div>
+      <div class="actions" onclick="event.stopPropagation()">
+        <button class="btn btn-green" onclick="approveDiscovered(${a.id})">Aprobar</button>
+        <button class="btn btn-red" onclick="rejectDiscovered(${a.id})">Rechazar</button>
+        <button class="btn" onclick="ignoreDiscovered(${a.id})">Ignorar</button>
+      </div>
+    </div>`).join('');
+}
+
+async function approveDiscovered(id) {
+  const label = prompt('Nombre visible para la cuenta (opcional):', '');
+  const body = label ? {label} : {};
+  const res = await fetch(`/api/accounts/discovered/${id}/approve`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error || 'No se pudo aprobar la cuenta'); return; }
+  addChatMsg('system', `Cuenta aprobada: ${data.account_id}`);
+  await loadData();
+}
+
+async function rejectDiscovered(id) {
+  const notes = prompt('Motivo del rechazo (opcional):', '');
+  const res = await fetch(`/api/accounts/discovered/${id}/reject`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notes})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error || 'No se pudo rechazar la cuenta'); return; }
+  await loadData();
+}
+
+async function ignoreDiscovered(id) {
+  const res = await fetch(`/api/accounts/discovered/${id}/ignore`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notes:'Ignorada desde dashboard'})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error || 'No se pudo ignorar la cuenta'); return; }
+  await loadData();
 }
 function toggleAccountsPanel() {
   accountsPanelOpen = !accountsPanelOpen;
@@ -488,28 +808,40 @@ function renderSystems() {
     const pfW  = Math.min(m.profit_factor/6*100,100).toFixed(0);
     const pf   = m.profit_factor>=99 ? '∞' : Number(m.profit_factor).toFixed(2);
     const isBad = s.action==='cuarentena';
-    return `<div class="sys-row ${exec?'executed':''}" data-id="${s.id}">
+    const riskReliable = !riskCommandBlocked(m);
+    const latestDecision = latestDecisionFor(s);
+    const expanded = expandedSystemId === s.id;
+    return `<div class="sys-row ${exec?'executed':''}" data-id="${s.id}" onclick="toggleSystemDetail('${s.id}')" style="cursor:pointer; flex-direction:column; align-items:stretch;">
+      <div style="display:flex; align-items:center; gap:10px; width:100%;">
       <div style="flex:1; min-width:0;">
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
           <span class="sys-id">${s.label || s.id}</span>
           <span class="pill pill-muted">${(s.instances || []).filter(accountMatches).length} cuentas</span>
           ${actionPill(s.action)}
+          <span class="pill pill-muted">${expanded ? 'detalle abierto' : 'ver detalle'}</span>
           ${exec ? '<span class="pill pill-green">✓ cmd enviado</span>' : ''}
         </div>
         <div style="display:flex; gap:10px; margin-top:5px; flex-wrap:wrap; align-items:center;">
           <div class="bar-bg" style="width:80px;"><div class="bar-fill" style="width:${pfW}%;background:${pfBarColor(m.profit_factor)};"></div></div>
           <span class="stat-inline">PF <span class="stat-val" style="color:${pfColor(m.profit_factor)}">${pf}</span></span>
-          <span class="stat-inline">DD <span class="stat-val" style="color:${ddColor(m.max_drawdown_pct)}">${Number(m.max_drawdown_pct).toFixed(1)}%</span></span>
-          <span class="stat-inline">Sharpe <span class="stat-val">${Number(m.sharpe).toFixed(2)}</span></span>
+          ${drawdownHtml(m)}
+          <span class="stat-inline">Sharpe <span class="stat-val">${metricText(m.sharpe, 2)}</span></span>
+          ${riskReliable ? '' : '<span class="pill pill-yellow">riesgo no validado</span>'}
           <span class="stat-inline" style="color:var(--muted)">${m.trades} trades · ${m.win_rate}% win</span>
         </div>
+        ${decisionSummaryHtml(latestDecision)}
+        ${instanceDecisionListHtml(s)}
       </div>
-      <div class="actions">
-        ${isBad || s.action==='reducir_riesgo' ? `<button class="btn btn-red" onclick="sendCommand('${s.id}','close_by_magic',this)" ${exec?'disabled':''}>⏹ Detener</button>` : ''}
-        ${s.action!=='aumentar_riesgo' ? `<button class="btn btn-yellow" onclick="sendCommand('${s.id}','reduce_lots',this)" ${exec?'disabled':''}>↓ −50%</button>` : ''}
-        ${s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_25',this)" ${exec?'disabled':''}>↑ +25%</button>` : ''}
-        ${s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_50',this)" ${exec?'disabled':''}>↑ +50%</button>` : ''}
+      <div class="actions" onclick="event.stopPropagation()">
+        <button class="btn" onclick="openDecisionForm('${s.id}')">Registrar decision</button>
+        ${riskReliable && (isBad || s.action==='reducir_riesgo') ? `<button class="btn btn-red" onclick="sendCommand('${s.id}','close_by_magic',this)" ${exec?'disabled':''}>Detener</button>` : ''}
+        ${riskReliable && (isBad || s.action==='reducir_riesgo') ? `<button class="btn btn-yellow" onclick="sendCommand('${s.id}','reduce_lots',this)" ${exec?'disabled':''}>Reducir 50%</button>` : ''}
+        ${riskReliable && s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_25',this)" ${exec?'disabled':''}>Aumentar 25%</button>` : ''}
+        ${riskReliable && s.action==='aumentar_riesgo' ? `<button class="btn btn-green" onclick="sendCommand('${s.id}','increase_lots_50',this)" ${exec?'disabled':''}>Aumentar 50%</button>` : ''}
+        ${riskReliable ? '' : '<span class="pill pill-muted">comandos bloqueados</span>'}
       </div>
+      </div>
+      ${expanded ? renderSystemDetail(s) : ''}
     </div>`;
   }).join('');
 }
@@ -527,8 +859,8 @@ function renderTop() {
         </div>
         <div style="display:flex; gap:12px; margin-top:5px; flex-wrap:wrap;">
           <span class="stat-inline">PF <span class="stat-val" style="color:var(--green)">${Number(globalMetrics(s).profit_factor).toFixed(2)}</span></span>
-          <span class="stat-inline">DD <span class="stat-val" style="color:var(--green)">${Number(globalMetrics(s).max_drawdown_pct).toFixed(1)}%</span></span>
-          <span class="stat-inline">Sharpe <span class="stat-val">${Number(globalMetrics(s).sharpe).toFixed(2)}</span></span>
+          ${drawdownHtml(globalMetrics(s))}
+          <span class="stat-inline">Sharpe <span class="stat-val">${metricText(globalMetrics(s).sharpe, 2)}</span></span>
           <span class="stat-inline">Win <span class="stat-val">${Number(globalMetrics(s).win_rate).toFixed(0)}%</span></span>
           <span class="stat-inline" style="color:var(--muted)">${globalMetrics(s).trades} trades</span>
           <span class="stat-inline" style="color:var(--muted)">${globalMetrics(s).first_trade} → ${globalMetrics(s).last_trade}</span>
@@ -559,7 +891,7 @@ function renderDemoReal() {
       return `<div style="background:var(--bg3); border-radius:6px; padding:10px; border-left:3px solid ${a.color};">
         <div style="color:${a.color}; font-size:10px; margin-bottom:6px; letter-spacing:.5px;">${a.label}</div>
         <div class="stat-inline">PF <span class="stat-val" style="color:${pfColor(m.profit_factor)}">${Number(m.profit_factor).toFixed(2)}</span></div> ·
-        <div class="stat-inline">DD <span class="stat-val" style="color:${ddColor(m.max_drawdown_pct)}">${Number(m.max_drawdown_pct).toFixed(1)}%</span></div>
+        <div>${drawdownHtml(m, true)}</div>
         <div style="margin-top:4px;" class="stat-inline">P&L <span class="stat-val" style="color:${m.net_profit>=0?'var(--green)':'var(--red)'}">${money(m.net_profit)}</span></div>
         <div style="margin-top:4px; color:var(--muted); font-size:10px;">${m.trades} trades · ${inst.action}</div>
       </div>`;
@@ -575,10 +907,187 @@ function renderDemoReal() {
 }
 
 // ─── Commands ────────────────────────────────────────────────────────────────
+function renderDecisions() {
+  const pendingEl = document.getElementById('pending-decisions');
+  const logEl = document.getElementById('decision-log');
+  if (!pendingEl || !logEl) return;
+  if (decisionLoadError) setDecisionStatus(decisionLoadError, 'error');
+  const pending = decisions.filter(decisionPending);
+  pendingEl.innerHTML = pending.length ? pending.map(decisionCardHtml).join('') : '<div class="empty">Sin decisiones pendientes de outcome.</div>';
+  logEl.innerHTML = decisions.length ? decisions.slice(0, 100).map(decisionCardHtml).join('') : '<div class="empty">Sin decisiones registradas.</div>';
+}
+
+function setDecisionStatus(message, kind='error') {
+  ['decision-status','decision-form-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `decision-status ${kind}`;
+    el.textContent = message || '';
+  });
+}
+
+function clearDecisionStatus() {
+  ['decision-status','decision-form-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'decision-status';
+    el.textContent = '';
+  });
+}
+
+function decisionCardHtml(d) {
+  return `<div class="decision-row">
+    <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+      <div>
+        <strong>${esc(d.strategy_id || d.magic || 'decision')}</strong>
+        <div class="decision-meta">
+          <span class="pill pill-muted">${esc(d.decision_type)}</span>
+          <span class="pill pill-muted">${esc(d.reason_category)}</span>
+          <span class="pill ${decisionPending(d)?'pill-yellow':'pill-green'}">${decisionPending(d)?'pendiente':'revisada'}</span>
+        </div>
+      </div>
+      <span class="cmd-ts">${esc(String(d.created_at || '').slice(0,19))}</span>
+    </div>
+    <div class="decision-note">${esc(d.human_note || d.ai_summary || '')}</div>
+    <div class="decision-meta">
+      <span>Cuenta: ${esc(d.account_id || d.account_key || 'n/a')}</span>
+      <span>Review: ${d.review_after_days ?? 'n/a'}d</span>
+      <span>7d: ${esc(d.outcome_7d || 'pendiente')}</span>
+      <span>30d: ${esc(d.outcome_30d || 'pendiente')}</span>
+    </div>
+    ${decisionPending(d) ? `<div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+      <input class="field" style="max-width:180px;" id="outcome-7-${d.id}" placeholder="outcome_7d" value="${esc(d.outcome_7d || '')}">
+      <input class="field" style="max-width:180px;" id="outcome-30-${d.id}" placeholder="outcome_30d" value="${esc(d.outcome_30d || '')}">
+      <button class="btn btn-green" onclick="updateDecisionOutcome(${d.id})">Actualizar outcome</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function decisionPayloadDefaults(system, instance=null) {
+  const snapshot = latestMetricSnapshotFor(system, instance);
+  return {
+    account_key: instance?.account_key || null,
+    account_id: instance?.account_id || null,
+    platform: instance?.platform || null,
+    strategy_id: instance?.strategy_id || system.strategy_id || system.id || null,
+    instance_id: instance?.instance_id || null,
+    magic: system.magic ?? null,
+    symbol: instance?.trades?.[0]?.symbol || null,
+    metrics_snapshot_id: snapshot?.id || null,
+    previous_state: instance?.action || system.action || null,
+    new_state: instance?.action || system.action || null,
+    portfolio_context_json: {
+      system_id: system.id,
+      label: system.label,
+      action: system.action,
+      action_global: system.action_global,
+      metrics: instance?.metrics || system.metrics_global || {},
+    },
+    created_by: 'dashboard',
+  };
+}
+
+function openDecisionForm(systemId, accountId=null) {
+  const system = (portfolio?.systems || []).find(s => s.id === systemId || s.label === systemId);
+  if (!system) return;
+  const instance = accountId ? (system.instances || []).find(i => i.account_id === accountId) : null;
+  const defaults = decisionPayloadDefaults(system, instance);
+  pendingDecisionDefaults = defaults;
+  clearDecisionStatus();
+  document.getElementById('decision-form-card')?.remove();
+  document.getElementById('systems-list').insertAdjacentHTML('afterbegin', `<div class="card" id="decision-form-card">
+    <div class="card-title">Registrar decision</div>
+    <div id="decision-form-status" class="decision-status"></div>
+    <div class="decision-note">${esc(system.label || system.id)}${instance ? ' · '+esc(instance.account_label || instance.account_id) : ''}</div>
+    <div class="decision-form">
+      <select class="field" id="decision-type">
+        <option value="mantener">mantener</option>
+        <option value="observar">observar</option>
+        <option value="reducir_riesgo">reducir_riesgo</option>
+        <option value="pausar">pausar</option>
+        <option value="desactivar">desactivar</option>
+        <option value="reactivar">reactivar</option>
+        <option value="aumentar_riesgo">aumentar_riesgo</option>
+        <option value="cerrar_posiciones">cerrar_posiciones</option>
+      </select>
+      <select class="field" id="reason-category">
+        <option value="drawdown">drawdown</option>
+        <option value="racha_perdedora">racha_perdedora</option>
+        <option value="degradacion_metricas">degradacion_metricas</option>
+        <option value="baja_data">baja_data</option>
+        <option value="error_ejecucion">error_ejecucion</option>
+        <option value="evento_macro">evento_macro</option>
+        <option value="regla_del_sistema">regla_del_sistema</option>
+        <option value="decision_emocional">decision_emocional</option>
+        <option value="manual_override">manual_override</option>
+      </select>
+      <input class="field" id="review-after-days" type="number" min="1" value="7" placeholder="review_after_days">
+      <input class="field" id="new-state" value="${esc(defaults.new_state || '')}" placeholder="new_state">
+      <textarea class="field" id="human-note" placeholder="Nota humana"></textarea>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn btn-green" onclick="submitDecision()">Guardar decision</button>
+      <button class="btn" onclick="document.getElementById('decision-form-card').remove()">Cancelar</button>
+    </div>
+  </div>`);
+}
+
+async function submitDecision() {
+  clearDecisionStatus();
+  const defaults = pendingDecisionDefaults || {};
+  const body = {
+    ...defaults,
+    decision_type: document.getElementById('decision-type').value,
+    reason_category: document.getElementById('reason-category').value,
+    human_note: document.getElementById('human-note').value,
+    review_after_days: Number(document.getElementById('review-after-days').value || 0),
+    new_state: document.getElementById('new-state').value || defaults.new_state,
+  };
+  Object.keys(body).forEach(k => (body[k] === null || body[k] === '') && delete body[k]);
+  try {
+    const res = await fetch('/api/decisions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setDecisionStatus(data.error || 'No se pudo registrar la decision', 'error');
+      return;
+    }
+    decisions.unshift(data.decision);
+    document.getElementById('decision-form-card')?.remove();
+    setDecisionStatus('Decision registrada correctamente.', 'ok');
+    renderSystems(); renderDemoReal(); renderDecisions();
+  } catch (e) {
+    setDecisionStatus(`Error de red registrando decision: ${e.message || e}`, 'error');
+  }
+}
+
+async function updateDecisionOutcome(id) {
+  clearDecisionStatus();
+  const outcome7 = document.getElementById(`outcome-7-${id}`)?.value || null;
+  const outcome30 = document.getElementById(`outcome-30-${id}`)?.value || null;
+  try {
+    const res = await fetch(`/api/decisions/${id}/outcome`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({outcome_7d: outcome7, outcome_30d: outcome30})});
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setDecisionStatus(data.error || 'No se pudo actualizar outcome', 'error');
+      return;
+    }
+    decisions = decisions.map(d => d.id === id ? data.decision : d);
+    setDecisionStatus('Outcome actualizado correctamente.', 'ok');
+    renderSystems(); renderDemoReal(); renderDecisions();
+  } catch (e) {
+    setDecisionStatus(`Error de red actualizando outcome: ${e.message || e}`, 'error');
+  }
+}
+
 async function sendCommand(systemId, action, btn, suffix='') {
   const system = (portfolio?.systems || []).find(s => s.id === systemId || s.label === systemId);
   const target = system ? commandTarget(system) : null;
   if (!target) { alert('Selecciona una cuenta valida para ejecutar el comando.'); return; }
+  const targetMetrics = target.metrics || system?.metrics_global || {};
+  if (riskCommandBlocked(targetMetrics)) {
+    alert('Comando bloqueado: falta DD real confiable sobre balance/equity para esta instancia.');
+    return;
+  }
   btn.disabled = true;
   btn.textContent = '...';
   try {
@@ -605,10 +1114,13 @@ async function sendCommand(systemId, action, btn, suffix='') {
 }
 
 async function batchAction(filterAction, action) {
-  const systems = filteredSystemsBase().filter(s=>s.action===filterAction || (s.instance_actions || []).includes(filterAction));
+  const systems = filteredSystemsBase().filter(s=>(s.action===filterAction || (s.instance_actions || []).includes(filterAction)));
   if (!systems.length) { alert('No hay sistemas con ese filtro.'); return; }
   const commands = [];
-  systems.forEach(s => (s.instances || []).filter(accountMatches).forEach(i => commands.push({system:s.id, account_id:i.account_id, action})));
+  systems.forEach(s => (s.instances || [])
+    .filter(accountMatches)
+    .filter(i => !riskCommandBlocked(i.metrics || {}))
+    .forEach(i => commands.push({system:s.id, account_id:i.account_id, action})));
   if (!commands.length) { alert('No hay instancias ejecutables con los filtros actuales.'); return; }
   if (!confirm(`¿Enviar "${action}" a ${commands.length} instancia(s)?`)) return;
   for (const cmd of commands) {
@@ -672,15 +1184,17 @@ function setFilter(filter, el) {
 }
 
 function showTab(name) {
-  ['systems','top','demo-real','commands'].forEach(t=>{
+  ['systems','top','demo-real','decisions','commands'].forEach(t=>{
     document.getElementById('view-'+t).style.display = t===name?'block':'none';
     document.getElementById('tab-btn-'+t)?.classList.toggle('active',t===name);
   });
   if (name==='commands') renderCmdLog();
+  if (name==='decisions') renderDecisions();
 }
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
 function getWelcomeMessage() {
+  return `Hola. Portafolio cargado: **${portfolio?.summary?.total_trades || 0} trades**, **${portfolio?.summary?.total_systems || 0} sistemas**.\n\nTengo ${portfolio?.systems?.filter(s=>s.action==='revision_manual').length || 0} sistemas en revision manual por calidad de datos, ${portfolio?.systems?.filter(s=>s.action==='cuarentena').length || 0} en cuarentena y ${portfolio?.systems?.filter(s=>s.action==='reducir_riesgo').length || 0} para reducir riesgo.`;
   return `Hola. Portafolio cargado: **${portfolio?.summary?.total_trades || 0} trades**, **${portfolio?.summary?.total_systems || 0} sistemas**.\n\nTengo ${portfolio?.systems?.filter(s=>s.action==='cuarentena').length || 0} sistemas en cuarentena y ${portfolio?.systems?.filter(s=>s.action==='reducir_riesgo').length || 0} para reducir riesgo. ¿Qué quieres analizar?`;
 }
 

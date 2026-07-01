@@ -14,6 +14,8 @@ input int    ExportIntervalMin = 60;
 input string AccountLabel = "REAL";
 input bool   ExportOnEveryTick = false;
 input bool   ShowInfoPanel = true;
+input bool   ExportClosedTrades = true;
+input int    ClosedTradesDaysBack = 365;
 
 datetime g_lastExport = 0;
 int g_exportCount = 0;
@@ -26,6 +28,18 @@ string JsonEscape(string value)
     StringReplace(value, "\r", " ");
     StringReplace(value, "\n", " ");
     return value;
+}
+
+string AccountLoginString()
+{
+    long login = AccountInfoInteger(ACCOUNT_LOGIN);
+    if(login < 0)
+    {
+        long uint32Range = 65536;
+        uint32Range *= 65536;
+        login += uint32Range;
+    }
+    return IntegerToString(login);
 }
 
 string TFToString(ENUM_TIMEFRAMES tf)
@@ -73,7 +87,7 @@ string AccountScopedFileName(string prefix, string extension)
     StringReplace(label, "|", "_");
     StringReplace(label, " ", "_");
 
-    return prefix + "_" + label + "_" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)) + extension;
+    return prefix + "_" + label + "_" + AccountLoginString() + extension;
 }
 
 void WriteJsonMetaStart(int fh, string node)
@@ -81,7 +95,7 @@ void WriteJsonMetaStart(int fh, string node)
     FileWriteString(fh, "{\n");
     FileWriteString(fh, "  \"platform\":\"MT5\",\n");
     FileWriteString(fh, "  \"timestamp\":\"" + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS) + "\",\n");
-    FileWriteString(fh, "  \"account\":\"" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)) + "\",\n");
+    FileWriteString(fh, "  \"account\":\"" + AccountLoginString() + "\",\n");
     FileWriteString(fh, "  \"account_label\":\"" + JsonEscape(AccountLabel) + "\",\n");
     FileWriteString(fh, "  \"server\":\"" + JsonEscape(AccountInfoString(ACCOUNT_SERVER)) + "\",\n");
     FileWriteString(fh, "  \"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\",\n");
@@ -93,6 +107,7 @@ int OnInit()
     Print("=== QA_AccountMonitor MT5 INICIADO ===");
     FolderCreate(OutputFolder, UseCommonPath ? FILE_COMMON : 0);
     ExportAll();
+    EventSetTimer(60);
     if(ShowInfoPanel) DrawInfoPanel();
     return INIT_SUCCEEDED;
 }
@@ -101,11 +116,22 @@ void OnDeinit(const int reason)
 {
     g_statusMsg = "Deteniendo...";
     ExportAll();
+    EventKillTimer();
     ObjectsDeleteAll(0, "QA5_");
     ChartRedraw();
 }
 
 void OnTick()
+{
+    CheckScheduledExport();
+}
+
+void OnTimer()
+{
+    CheckScheduledExport();
+}
+
+void CheckScheduledExport()
 {
     bool shouldExport = ExportOnEveryTick || (TimeCurrent() - g_lastExport >= ExportIntervalMin * 60);
     if(shouldExport)
@@ -120,6 +146,7 @@ void ExportAll()
     ExportRunningEAs();
     ExportAccountSnapshot();
     ExportOpenTrades();
+    if(ExportClosedTrades) ExportTradeHistory();
     g_lastExport = TimeCurrent();
     g_exportCount++;
     g_statusMsg = "OK - Ultima exportacion: " + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS);
@@ -145,14 +172,14 @@ void ExportRunningEAsFile(string fileName)
         {
             if(count > 0) FileWriteString(fh, ",\n");
             FileWriteString(fh, StringFormat(
-                "    {\"chart_id\":%I64d,\"symbol\":\"%s\",\"timeframe\":\"%s\",\"ea_name\":\"%s\",\"timestamp\":\"%s\",\"account_label\":\"%s\",\"account_number\":\"%d\",\"server\":\"%s\",\"platform\":\"MT5\"}",
+                "    {\"chart_id\":%I64d,\"symbol\":\"%s\",\"timeframe\":\"%s\",\"ea_name\":\"%s\",\"timestamp\":\"%s\",\"account_label\":\"%s\",\"account_number\":\"%s\",\"server\":\"%s\",\"platform\":\"MT5\"}",
                 chartId,
                 JsonEscape(ChartSymbol(chartId)),
                 TFToString((ENUM_TIMEFRAMES)ChartPeriod(chartId)),
                 JsonEscape(eaName),
                 TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS),
                 JsonEscape(AccountLabel),
-                (int)AccountInfoInteger(ACCOUNT_LOGIN),
+                AccountLoginString(),
                 JsonEscape(AccountInfoString(ACCOUNT_SERVER))
             ));
             count++;
@@ -187,7 +214,7 @@ void ExportAccountSnapshotFile(string fileName)
     FileWriteString(fh, "  \"snapshot\":{\n");
     FileWriteString(fh, "    \"timestamp\":\"" + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS) + "\",\n");
     FileWriteString(fh, StringFormat("    \"balance\":%.2f,\n    \"equity\":%.2f,\n    \"margin\":%.2f,\n    \"free_margin\":%.2f,\n    \"margin_level_pct\":%.2f,\n    \"open_pl\":%.2f,\n", balance, equity, margin, freeMargin, marginLevel, openPL));
-    FileWriteString(fh, "    \"account\":\"" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)) + "\",\n");
+    FileWriteString(fh, "    \"account\":\"" + AccountLoginString() + "\",\n");
     FileWriteString(fh, "    \"account_label\":\"" + JsonEscape(AccountLabel) + "\",\n");
     FileWriteString(fh, "    \"server\":\"" + JsonEscape(AccountInfoString(ACCOUNT_SERVER)) + "\",\n");
     FileWriteString(fh, "    \"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\",\n");
@@ -243,11 +270,149 @@ void ExportOpenTradesFile(string fileName)
     FileClose(fh);
 }
 
+string DealTypeToStr(long type)
+{
+    if(type == DEAL_TYPE_BUY) return "BUY";
+    if(type == DEAL_TYPE_SELL) return "SELL";
+    return "OTHER_" + IntegerToString((int)type);
+}
+
+double PipSize(string symbol)
+{
+    double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+    if(point <= 0) return 0.0;
+    if(digits == 5 || digits == 3) return point * 10.0;
+    return point;
+}
+
+double CalculatePips(string symbol, long dealType, double openPrice, double closePrice)
+{
+    double pip = PipSize(symbol);
+    if(pip <= 0 || openPrice <= 0 || closePrice <= 0) return 0.0;
+
+    double diff = 0.0;
+    if(dealType == DEAL_TYPE_BUY) diff = closePrice - openPrice;
+    if(dealType == DEAL_TYPE_SELL) diff = openPrice - closePrice;
+    return NormalizeDouble(diff / pip, 1);
+}
+
+void CleanCsv(string &value)
+{
+    StringReplace(value, ",", ";");
+    StringReplace(value, "\n", " ");
+    StringReplace(value, "\r", " ");
+}
+
+bool FindOpeningDeal(ulong positionId, datetime closeTime, double &openPrice, datetime &openTime)
+{
+    int total = HistoryDealsTotal();
+    for(int i = 0; i < total; i++)
+    {
+        ulong ticket = HistoryDealGetTicket(i);
+        if(ticket == 0) continue;
+        if((ulong)HistoryDealGetInteger(ticket, DEAL_POSITION_ID) != positionId) continue;
+        if((long)HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
+        if((datetime)HistoryDealGetInteger(ticket, DEAL_TIME) > closeTime) continue;
+
+        openPrice = HistoryDealGetDouble(ticket, DEAL_PRICE);
+        openTime = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+        return true;
+    }
+    return false;
+}
+
+void ExportTradeHistory()
+{
+    int commonFlag = UseCommonPath ? FILE_COMMON : 0;
+    string acctNum = AccountLoginString();
+    string label = AccountLabel;
+    StringToUpper(label);
+    string fileName = OutputFolder + "\\trades_" + label + "_" + acctNum + ".csv";
+
+    datetime toDate = TimeCurrent();
+    datetime fromDate = (ClosedTradesDaysBack > 0) ? toDate - (datetime)(ClosedTradesDaysBack * 86400) : 0;
+    if(!HistorySelect(fromDate, toDate))
+    {
+        Print("ERR trades_history HistorySelect: ", GetLastError());
+        return;
+    }
+
+    int fh = FileOpen(fileName, FILE_WRITE | FILE_CSV | commonFlag, ',');
+    if(fh == INVALID_HANDLE) { Print("ERR trades_history.csv: ", GetLastError()); return; }
+
+    FileWrite(fh,
+        "ticket", "symbol", "type", "lots", "open_price", "close_price",
+        "open_time", "close_time", "profit", "swap", "commission", "net_profit",
+        "pips", "magic", "comment", "account", "account_label", "broker", "currency", "platform"
+    );
+
+    int exported = 0;
+    int skipped = 0;
+    int total = HistoryDealsTotal();
+
+    for(int i = 0; i < total; i++)
+    {
+        ulong ticket = HistoryDealGetTicket(i);
+        if(ticket == 0) { skipped++; continue; }
+
+        long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+        long type = HistoryDealGetInteger(ticket, DEAL_TYPE);
+        if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT && entry != DEAL_ENTRY_OUT_BY) { skipped++; continue; }
+        if(type != DEAL_TYPE_BUY && type != DEAL_TYPE_SELL) { skipped++; continue; }
+
+        string symbol = HistoryDealGetString(ticket, DEAL_SYMBOL);
+        datetime closeTime = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+        ulong positionId = (ulong)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+        double closePrice = HistoryDealGetDouble(ticket, DEAL_PRICE);
+        double openPrice = closePrice;
+        datetime openTime = closeTime;
+        FindOpeningDeal(positionId, closeTime, openPrice, openTime);
+
+        double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+        double swap = HistoryDealGetDouble(ticket, DEAL_SWAP);
+        double commission = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+        double netProfit = profit + swap + commission;
+        double pips = CalculatePips(symbol, type, openPrice, closePrice);
+
+        string comment = HistoryDealGetString(ticket, DEAL_COMMENT);
+        CleanCsv(comment);
+
+        int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+        FileWrite(fh,
+            IntegerToString((long)ticket),
+            symbol,
+            DealTypeToStr(type),
+            DoubleToString(HistoryDealGetDouble(ticket, DEAL_VOLUME), 2),
+            DoubleToString(openPrice, digits),
+            DoubleToString(closePrice, digits),
+            TimeToString(openTime, TIME_DATE | TIME_SECONDS),
+            TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
+            DoubleToString(profit, 2),
+            DoubleToString(swap, 2),
+            DoubleToString(commission, 2),
+            DoubleToString(netProfit, 2),
+            DoubleToString(pips, 1),
+            IntegerToString((int)HistoryDealGetInteger(ticket, DEAL_MAGIC)),
+            comment,
+            acctNum,
+            label,
+            AccountInfoString(ACCOUNT_SERVER),
+            AccountInfoString(ACCOUNT_CURRENCY),
+            "MT5"
+        );
+        exported++;
+    }
+
+    FileClose(fh);
+    Print(StringFormat("[Trade History MT5] %d operaciones cerradas exportadas (%d omitidas).", exported, skipped));
+}
+
 void DrawInfoPanel()
 {
     string prefix = "QA5_";
     DrawLabel(prefix + "title", "QA Portfolio Monitor MT5", 10, 30, 9, clrSkyBlue);
-    DrawLabel(prefix + "acct", "Cuenta: " + AccountLabel + " #" + IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN)), 10, 46, 8, clrSilver);
+    DrawLabel(prefix + "acct", "Cuenta: " + AccountLabel + " #" + AccountLoginString(), 10, 46, 8, clrSilver);
     DrawLabel(prefix + "equity", "Equity: " + AccountInfoString(ACCOUNT_CURRENCY) + " " + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2), 10, 62, 8, clrWhite);
     DrawLabel(prefix + "exports", "Exports: " + IntegerToString(g_exportCount) + " | Intervalo: " + IntegerToString(ExportIntervalMin) + " min", 10, 78, 8, clrSilver);
     DrawLabel(prefix + "status", g_statusMsg, 10, 94, 7, clrGray);
