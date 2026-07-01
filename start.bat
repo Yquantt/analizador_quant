@@ -58,12 +58,20 @@ if errorlevel 1 (
     )
 )
 
+for /f "usebackq delims=" %%P in (`%PYTHON_CMD% -c "import json, pathlib; p=pathlib.Path('config.json'); cfg=json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}; print(cfg.get('server_port', 5000))"`) do set "SERVER_PORT=%%P"
+if not defined SERVER_PORT set "SERVER_PORT=5000"
+
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%SERVER_PORT% .*LISTENING"') do (
+    echo Puerto %SERVER_PORT% ocupado por PID %%P. Cerrando instancia anterior...
+    taskkill /PID %%P /F >nul 2>&1
+)
+
 echo.
-echo  Servidor iniciado en: http://localhost:5000
+echo  Servidor iniciado en: http://localhost:%SERVER_PORT%
 echo  Presiona Ctrl+C para detener
 echo.
 
-start "" /B cmd /C "timeout /T 2 /NOBREAK >nul && start http://localhost:5000"
+start "" /B cmd /C "timeout /T 2 /NOBREAK >nul && start http://localhost:%SERVER_PORT%/?v=%RANDOM%"
 
 %PYTHON_CMD% app.py
 
